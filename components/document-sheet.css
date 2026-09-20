@@ -1,0 +1,346 @@
+.doc-sheet {
+  box-sizing: border-box;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 32px;
+  background: #fff;
+  color: #1c1917;
+  font-family: var(--font-geist-sans), GeistSans, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.doc-sheet *,
+.doc-sheet *::before,
+.doc-sheet *::after {
+  box-sizing: border-box;
+}
+
+.doc-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 16px;
+}
+
+.doc-header-brand {
+  border-bottom: 4px solid oklch(0.42 0.14 18);
+}
+
+.doc-header-plain {
+  border-bottom: 2px solid #1c1917;
+}
+
+.doc-company {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.doc-logo {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.doc-company-name {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.doc-tagline {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+
+.doc-company-meta {
+  margin: 12px 0 0;
+  max-width: 22rem;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #57534e;
+}
+
+.doc-meta {
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+.doc-kicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: oklch(0.42 0.14 18);
+}
+
+.doc-kicker-ink {
+  color: #1c1917;
+  letter-spacing: 0.2em;
+}
+
+.doc-number {
+  margin: 8px 0 0;
+  font-family: var(--font-geist-mono), GeistMono, ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18px;
+}
+
+.doc-date {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+
+.doc-muted {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #78716c;
+}
+
+.doc-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+  font-size: 14px;
+}
+
+.doc-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+
+.doc-party-name {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+
+.doc-party-line {
+  margin: 0;
+}
+
+.doc-party-address {
+  margin: 0;
+  max-width: 22rem;
+  color: #57534e;
+}
+
+.doc-right {
+  text-align: right;
+}
+
+.doc-table {
+  width: 100%;
+  margin-top: 24px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 14px;
+}
+
+.doc-table th,
+.doc-table td {
+  padding: 10px 16px 10px 0;
+  vertical-align: top;
+  text-align: left;
+}
+
+.doc-table th {
+  font-weight: 600;
+  border-top: 1px solid #1c1917;
+  border-bottom: 1px solid #1c1917;
+}
+
+.doc-table td {
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.doc-table .col-no {
+  width: 44px;
+}
+
+.doc-table .col-qty {
+  width: 72px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.doc-table .col-sat {
+  width: 72px;
+  white-space: nowrap;
+}
+
+.doc-table .col-price,
+.doc-table .col-amount {
+  width: 120px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.doc-table .col-amount,
+.doc-table .col-note {
+  padding-right: 0;
+}
+
+.doc-item-name {
+  font-weight: 500;
+}
+
+.doc-spec {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #78716c;
+}
+
+.doc-totals-wrap {
+  display: flex;
+  justify-content: space-between;
+  gap: 32px;
+  margin-top: 24px;
+}
+
+.doc-notes {
+  max-width: 22rem;
+  font-size: 14px;
+}
+
+.doc-notes p {
+  margin: 0;
+}
+
+.doc-terbilang {
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.doc-note-block {
+  margin-top: 16px;
+  white-space: pre-wrap;
+  color: #57534e;
+}
+
+.doc-bank {
+  margin-top: 16px;
+}
+
+.doc-totals {
+  min-width: 14rem;
+  font-size: 14px;
+}
+
+.doc-totals-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 3px 0;
+}
+
+.doc-totals-grand {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #1c1917;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.doc-signs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-top: 64px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.doc-signs p {
+  margin: 0;
+}
+
+.doc-sign-space {
+  height: 80px;
+}
+
+.doc-sign-name {
+  font-weight: 600;
+}
+
+.doc-status {
+  text-transform: uppercase;
+}
+
+.doc-center {
+  text-align: center;
+}
+
+.doc-center .doc-kicker {
+  margin-top: 12px;
+}
+
+.doc-center .doc-number {
+  font-size: 14px;
+}
+
+.doc-title {
+  margin: 8px 0 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.doc-body {
+  margin: 32px 0 0;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.doc-logo-center {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.doc-ref {
+  margin: 20px 0 0;
+  width: auto;
+  border-collapse: collapse;
+}
+
+.doc-ref td {
+  border: 0;
+  padding: 2px 12px 2px 0;
+  vertical-align: top;
+  font-size: 13px;
+}
+
+.doc-ref td:first-child {
+  width: 6.5rem;
+  color: #57534e;
+}
+
+.doc-pre {
+  white-space: pre-wrap;
+}
+
+@media print {
+  .doc-sheet {
+    max-width: none;
+    padding: 0;
+    box-shadow: none;
+  }
+}
