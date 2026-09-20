@@ -1,4 +1,5 @@
 import { monthKey } from "@/lib/format";
+import { isPostedPayroll, payrollKindTotal, payrollTotal } from "@/lib/payroll";
 import { lineAmount } from "@/lib/pricing";
 import type { Database, Invoice, LineItem } from "@/lib/types";
 
@@ -52,11 +53,15 @@ export interface FinanceSummary {
   hpp: number;
   labaKotor: number;
   beban: number;
+  bebanOperasional: number;
+  bebanUpah: number;
+  bebanProduksiLuar: number;
   labaBersih: number;
   kas: number;
   piutang: number;
   persediaan: number;
   hutang: number;
+  hutangGaji: number;
   ppnKeluaran: number;
   aktiva: number;
   kewajiban: number;
@@ -79,9 +84,15 @@ export function computeFinance(db: Database, period?: string): FinanceSummary {
 
   const pendapatan = periodIssued.reduce((sum, invoice) => sum + invoiceDpp(invoice), 0);
   const hpp = periodIssued.reduce((sum, invoice) => sum + invoiceCogs(invoice.items), 0);
-  const beban = db.expenses
+  const payrolls = db.payrolls ?? [];
+  const postedPayrolls = payrolls.filter((row) => isPostedPayroll(row.status));
+  const periodPayrolls = postedPayrolls.filter((row) => inPeriod(row.date, period));
+  const bebanUpah = periodPayrolls.reduce((sum, row) => sum + payrollKindTotal(row, "pekerja"), 0);
+  const bebanProduksiLuar = periodPayrolls.reduce((sum, row) => sum + payrollKindTotal(row, "vendor"), 0);
+  const bebanOperasional = db.expenses
     .filter((expense) => inPeriod(expense.date, period))
     .reduce((sum, expense) => sum + expense.amount, 0);
+  const beban = bebanOperasional + bebanUpah + bebanProduksiLuar;
   const labaKotor = pendapatan - hpp;
   const labaBersih = labaKotor - beban;
 
@@ -91,13 +102,18 @@ export function computeFinance(db: Database, period?: string): FinanceSummary {
   });
   const ytdPendapatan = ytdIssued.reduce((sum, invoice) => sum + invoiceDpp(invoice), 0);
   const ytdHpp = ytdIssued.reduce((sum, invoice) => sum + invoiceCogs(invoice.items), 0);
-  const ytdBeban = db.expenses
+  const ytdBebanOperasional = db.expenses
     .filter((expense) => {
       if (!period || period === "all") return true;
       return expense.date.slice(0, 4) === period.slice(0, 4);
     })
     .reduce((sum, expense) => sum + expense.amount, 0);
-  const labaTahun = ytdPendapatan - ytdHpp - ytdBeban;
+  const ytdPayrolls = postedPayrolls.filter((row) => {
+    if (!period || period === "all") return true;
+    return row.date.slice(0, 4) === period.slice(0, 4);
+  });
+  const ytdBebanPayroll = ytdPayrolls.reduce((sum, row) => sum + payrollTotal(row), 0);
+  const labaTahun = ytdPendapatan - ytdHpp - ytdBebanOperasional - ytdBebanPayroll;
 
   const payments = db.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const paidPurchases = db.purchases
@@ -107,8 +123,14 @@ export function computeFinance(db: Database, period?: string): FinanceSummary {
     .filter((purchase) => !purchase.paid)
     .reduce((sum, purchase) => sum + purchaseTotal(purchase.items), 0);
   const allExpenses = db.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const paidPayrolls = payrolls
+    .filter((row) => row.status === "lunas")
+    .reduce((sum, row) => sum + payrollTotal(row), 0);
+  const unpaidPayrolls = payrolls
+    .filter((row) => row.status === "terbit")
+    .reduce((sum, row) => sum + payrollTotal(row), 0);
 
-  const kas = db.profile.openingCash + payments - paidPurchases - allExpenses;
+  const kas = db.profile.openingCash + payments - paidPurchases - allExpenses - paidPayrolls;
   const piutang = issued.reduce((sum, invoice) => sum + invoiceOutstanding(invoice), 0);
   const persediaan = db.products.reduce(
     (sum, product) => sum + Math.max(0, product.stock) * product.costPrice,
@@ -117,7 +139,8 @@ export function computeFinance(db: Database, period?: string): FinanceSummary {
   const ppnKeluaran = issued.reduce((sum, invoice) => sum + invoicePpn(invoice), 0);
 
   const aktiva = kas + piutang + persediaan;
-  const kewajiban = unpaidPurchases + ppnKeluaran;
+  const hutang = unpaidPurchases + unpaidPayrolls;
+  const kewajiban = hutang + ppnKeluaran;
   const modal = db.profile.openingCapital;
   const ekuitas = aktiva - kewajiban;
   const penyesuaian = ekuitas - modal - labaTahun;
@@ -133,11 +156,15 @@ export function computeFinance(db: Database, period?: string): FinanceSummary {
     hpp,
     labaKotor,
     beban,
+    bebanOperasional,
+    bebanUpah,
+    bebanProduksiLuar,
     labaBersih,
     kas,
     piutang,
     persediaan,
-    hutang: unpaidPurchases,
+    hutang,
+    hutangGaji: unpaidPayrolls,
     ppnKeluaran,
     aktiva,
     kewajiban,
@@ -149,7 +176,10 @@ export function computeFinance(db: Database, period?: string): FinanceSummary {
       ? monthIssued.reduce((sum, invoice) => sum + invoiceDpp(invoice) - invoiceCogs(invoice.items), 0) -
         db.expenses
           .filter((expense) => monthKey(expense.date) === currentMonth)
-          .reduce((sum, expense) => sum + expense.amount, 0)
+          .reduce((sum, expense) => sum + expense.amount, 0) -
+        postedPayrolls
+          .filter((row) => monthKey(row.date) === currentMonth)
+          .reduce((sum, row) => sum + payrollTotal(row), 0)
       : labaBersih,
     labaTahun,
   };

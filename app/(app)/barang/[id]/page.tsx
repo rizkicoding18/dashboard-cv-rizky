@@ -3,6 +3,7 @@ import { deleteCustomerPrice } from "@/app/actions";
 import { ConfirmSubmit } from "@/components/line-items";
 import { PriceForm, PurchaseForm } from "@/components/money-forms";
 import { ProductForm } from "@/components/product-form";
+import { ProductMediaCard } from "@/components/file-uploads";
 import { Card, PageHeader, Table, TableBody, TableHeader, TableRow, Td, Th } from "@/components/shared";
 import { formatDate, formatNumber, formatRupiah } from "@/lib/format";
 import { readDb } from "@/lib/store";
@@ -33,6 +34,12 @@ export default async function BarangDetailPage({
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <ProductForm product={product} />
         <div className="grid gap-6">
+          <ProductMediaCard
+            productId={product.id}
+            category={product.category}
+            photo={product.photo}
+            printFiles={product.printFiles ?? []}
+          />
           <Card className="p-5">
             <div className="mb-4 flex items-end justify-between gap-4">
               <div>

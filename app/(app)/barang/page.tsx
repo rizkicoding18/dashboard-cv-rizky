@@ -14,6 +14,7 @@ import {
   Th,
 } from "@/components/shared";
 import { CATEGORY_LABEL } from "@/lib/labels";
+import { filePublicUrl } from "@/lib/file-meta";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import { readDb } from "@/lib/store";
 
@@ -54,9 +55,19 @@ export default async function BarangPage({
                 <Link key={product.id} href={`/barang/${product.id}`}>
                   <Card className="p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">{product.sku}</p>
+                      <div className="flex min-w-0 items-start gap-3">
+                        {product.photo ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={filePublicUrl(product.photo)}
+                            alt=""
+                            className="size-12 shrink-0 rounded-lg object-cover"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <p className="font-medium">{product.name}</p>
+                          <p className="text-xs text-muted-foreground">{product.sku}</p>
+                        </div>
                       </div>
                       {low ? <Badge tone="warn">Menipis</Badge> : null}
                     </div>
@@ -90,10 +101,22 @@ export default async function BarangPage({
                   return (
                     <TableRow key={product.id}>
                       <Td>
-                        <Link href={`/barang/${product.id}`} className="font-medium">
-                          {product.name}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">{product.sku}</p>
+                        <div className="flex items-center gap-3">
+                          {product.photo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={filePublicUrl(product.photo)}
+                              alt=""
+                              className="size-10 shrink-0 rounded-md object-cover"
+                            />
+                          ) : null}
+                          <div>
+                            <Link href={`/barang/${product.id}`} className="font-medium">
+                              {product.name}
+                            </Link>
+                            <p className="text-xs text-muted-foreground">{product.sku}</p>
+                          </div>
+                        </div>
                       </Td>
                       <Td>{CATEGORY_LABEL[product.category]}</Td>
                       <Td>

@@ -18,11 +18,25 @@ function migrate(db: Database): Database {
   if (!Array.isArray(db.suratJalans)) db.suratJalans = [];
   if (!Array.isArray(db.quotations)) db.quotations = [];
   if (!Array.isArray(db.banks)) db.banks = [];
+  if (!Array.isArray(db.payees)) db.payees = [];
+  if (!Array.isArray(db.payrolls)) db.payrolls = [];
+  for (const product of db.products) {
+    if (product.photo === undefined) product.photo = null;
+    if (!Array.isArray(product.printFiles)) product.printFiles = [];
+  }
+  for (const order of db.orders) {
+    if (order.taxInvoice === undefined) order.taxInvoice = null;
+    if (order.spk === undefined) order.spk = null;
+  }
   for (const invoice of db.invoices) {
     if (!invoice.fakturNumber) {
       invoice.fakturNumber = invoice.number.replace(/^INV\b/, "FKT");
     }
     if (invoice.bankId === undefined) invoice.bankId = null;
+  }
+  for (const payment of db.payments) {
+    if (payment.bankId === undefined) payment.bankId = null;
+    if (payment.proof === undefined) payment.proof = null;
   }
   if (!db.banks.length && db.profile.bankAccount) {
     db.banks.push({

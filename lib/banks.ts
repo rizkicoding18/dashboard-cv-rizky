@@ -23,6 +23,10 @@ export function formatBankLine(bank?: BankAccount | null) {
   return `Pembayaran ke ${bank.bankName} ${bank.accountNumber} a.n. ${bank.holder}`;
 }
 
+export function formatBankOption(bank: BankAccount) {
+  return `${bank.bankName} · ${bank.accountNumber} a.n. ${bank.holder}`;
+}
+
 export function syncProfileBank(db: Database) {
   const bank = resolveBank(db, null);
   if (!bank) return;

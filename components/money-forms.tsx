@@ -10,9 +10,11 @@ import {
   resetDemoData,
 } from "@/app/actions";
 import { Button, Card, Field, Input, Select } from "@/components/form-controls";
+import { formatBankOption } from "@/lib/banks";
 import { todayIso } from "@/lib/format";
+import { uploadAccept } from "@/lib/file-meta";
 import { EXPENSE_LABEL } from "@/lib/labels";
-import type { CompanyProfile, Customer, ExpenseCategory, PaymentMethod, Product } from "@/lib/types";
+import type { BankAccount, CompanyProfile, Customer, ExpenseCategory, Product } from "@/lib/types";
 
 export function PriceForm({
   customers,
@@ -138,7 +140,8 @@ export function ExpenseForm() {
   const [pending, start] = useTransition();
   return (
     <Card className="p-5">
-      <h2 className="mb-4 font-heading text-xl">Beban operasional</h2>
+      <h2 className="mb-4 font-heading text-xl">Catat biaya harian</h2>
+      <p className="mb-4 -mt-2 text-sm text-muted-foreground">Sewa, listrik, bensin, dan pengeluaran operasional lain.</p>
       <form
         className="grid gap-3 sm:grid-cols-2"
         onSubmit={(event) => {
@@ -187,9 +190,19 @@ export function ExpenseForm() {
   );
 }
 
-export function PaymentForm({ invoiceId }: { invoiceId: string }) {
+export function PaymentForm({
+  invoiceId,
+  banks,
+  defaultBankId,
+}: {
+  invoiceId: string;
+  banks: BankAccount[];
+  defaultBankId?: string | null;
+}) {
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
+  const fallbackBankId = defaultBankId || banks.find((bank) => bank.isDefault)?.id || banks[0]?.id || "";
+
   return (
     <form
       className="grid gap-3 sm:grid-cols-2"
@@ -199,13 +212,7 @@ export function PaymentForm({ invoiceId }: { invoiceId: string }) {
         const data = new FormData(form);
         setError("");
         start(async () => {
-          const result = await addPayment({
-            invoiceId,
-            date: String(data.get("date") || todayIso()),
-            amount: Number(data.get("amount") || 0),
-            method: String(data.get("method") || "transfer") as PaymentMethod,
-            notes: String(data.get("notes") || ""),
-          });
+          const result = await addPayment(invoiceId, data);
           if (result?.error) setError(result.error);
           else form.reset();
         });
@@ -224,12 +231,30 @@ export function PaymentForm({ invoiceId }: { invoiceId: string }) {
           <option value="giro">Giro</option>
         </Select>
       </Field>
+      <Field label="Bank penerima" hint="Rekening dari master data Bank.">
+        <Select name="bankId" defaultValue={fallbackBankId} required>
+          <option value="">Pilih rekening</option>
+          {banks.map((bank) => (
+            <option key={bank.id} value={bank.id}>
+              {formatBankOption(bank)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <div className="sm:col-span-2">
+        <Field label="Bukti pembayaran" hint="Opsional. PDF, JPG, PNG, atau WEBP. Maksimal 12 MB.">
+          <Input name="file" type="file" accept={uploadAccept("proof")} />
+        </Field>
+      </div>
       <Field label="Catatan">
         <Input name="notes" />
       </Field>
       {error ? <p className="sm:col-span-2 text-sm text-destructive">{error}</p> : null}
+      {banks.length === 0 ? (
+        <p className="sm:col-span-2 text-sm text-destructive">Tambah rekening di menu Bank sebelum mencatat pembayaran.</p>
+      ) : null}
       <div>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || banks.length === 0}>
           {pending ? "Menyimpan..." : "Catat pembayaran"}
         </Button>
       </div>

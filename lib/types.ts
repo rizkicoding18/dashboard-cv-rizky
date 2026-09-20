@@ -43,6 +43,15 @@ export interface BankAccount {
   notes: string;
 }
 
+export interface StoredFile {
+  id: string;
+  name: string;
+  path: string;
+  mime: string;
+  size: number;
+  uploadedAt: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -67,6 +76,8 @@ export interface Product {
   defaultPrice: number;
   trackStock: boolean;
   description: string;
+  photo: StoredFile | null;
+  printFiles: StoredFile[];
   createdAt: string;
 }
 
@@ -98,6 +109,8 @@ export interface Order {
   status: OrderStatus;
   notes: string;
   items: LineItem[];
+  taxInvoice: StoredFile | null;
+  spk: StoredFile | null;
   createdAt: string;
 }
 
@@ -219,12 +232,54 @@ export interface Expense {
   amount: number;
 }
 
+export type PayeeKind = "pekerja" | "vendor";
+
+export type WorkType = "desain" | "cetak" | "finishing" | "packing" | "lainnya";
+
+export type PayrollStatus = "draft" | "terbit" | "lunas";
+
+export interface Payee {
+  id: string;
+  kind: PayeeKind;
+  name: string;
+  phone: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface PayrollItem {
+  id: string;
+  payeeId: string;
+  payeeName: string;
+  kind: PayeeKind;
+  workType: WorkType;
+  description: string;
+  qty: number;
+  unit: string;
+  rate: number;
+}
+
+export interface Payroll {
+  id: string;
+  number: string;
+  date: string;
+  orderId: string | null;
+  status: PayrollStatus;
+  notes: string;
+  method: PaymentMethod | "";
+  paidAt: string | null;
+  items: PayrollItem[];
+  createdAt: string;
+}
+
 export interface Payment {
   id: string;
   invoiceId: string;
   date: string;
   amount: number;
   method: PaymentMethod;
+  bankId: string | null;
+  proof: StoredFile | null;
   notes: string;
 }
 
@@ -255,6 +310,8 @@ export interface Database {
   expenses: Expense[];
   payments: Payment[];
   stockMoves: StockMove[];
+  payees: Payee[];
+  payrolls: Payroll[];
 }
 
 export type DraftLine = {
@@ -284,4 +341,14 @@ export type DraftSjLine = {
   qty: number;
   unit: string;
   notes: string;
+};
+
+export type DraftPayrollLine = {
+  key: string;
+  payeeId: string;
+  workType: WorkType;
+  description: string;
+  qty: number;
+  unit: string;
+  rate: number;
 };

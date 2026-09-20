@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ComponentProps } from "react";
 import { cn } from "@/lib/utils";
+import { NumberInput } from "@/components/number-input";
 import { Badge as UiBadge } from "@/components/ui/badge";
 import { Button as UiButton } from "@/components/ui/button";
 import { Card as UiCard } from "@/components/ui/card";
@@ -37,8 +38,11 @@ export function Button({
   );
 }
 
-export function Input({ className, ...props }: ComponentProps<typeof UiInput>) {
-  return <UiInput suppressHydrationWarning className={cn("h-10 md:text-sm", className)} {...props} />;
+export function Input({ className, type, ...props }: ComponentProps<typeof UiInput>) {
+  if (type === "number") {
+    return <NumberInput className={cn("h-10 md:text-sm tabular-nums text-right", className)} {...props} />;
+  }
+  return <UiInput suppressHydrationWarning type={type} className={cn("h-10 md:text-sm", className)} {...props} />;
 }
 
 export function Select({

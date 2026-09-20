@@ -24,7 +24,7 @@ export default async function DokumenPage() {
       <PageHeader
         eyebrow="Dokumen"
         title="Invoice, faktur & BA"
-        description="Terbitkan invoice untuk menagih. Surat penawaran harga dibuat otomatis saat order masuk. Faktur dan berita acara dibuat otomatis. Surat jalan dibuat dari detail invoice."
+        description="Terbitkan invoice untuk menagih. Faktur pajak diunggah di halaman invoice. Surat jalan dibuat dari detail invoice."
         actions={<ButtonLink href="/dokumen/invoice/baru">Buat invoice</ButtonLink>}
       />
       <section>

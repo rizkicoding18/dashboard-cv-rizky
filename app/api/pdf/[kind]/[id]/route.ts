@@ -5,9 +5,12 @@ import {
   BeritaAcaraDocument,
   FakturDocument,
   InvoiceDocument,
+  PayrollDocument,
   QuotationDocument,
   SuratJalanDocument,
 } from "@/components/documents";
+import { LabaRugiDocument, NeracaDocument } from "@/components/finance-reports";
+import { computeFinance } from "@/lib/finance";
 import { pdfFilename } from "@/lib/pdf";
 import { renderDocumentPdf } from "@/lib/print-pdf";
 import { readDb } from "@/lib/store";
@@ -76,6 +79,36 @@ export async function GET(
         }),
       ),
       pdfFilename(quotation.number, quotation.kind),
+    );
+  }
+
+  if (kind === "gaji") {
+    const payroll = db.payrolls.find((row) => row.id === id);
+    if (!payroll) return missing();
+    const order = payroll.orderId ? db.orders.find((row) => row.id === payroll.orderId) : null;
+    return pdfResponse(
+      await renderDocumentPdf(
+        createElement(PayrollDocument, {
+          profile: db.profile,
+          payroll,
+          orderNumber: order?.number,
+        }),
+      ),
+      pdfFilename(payroll.number, "gaji"),
+    );
+  }
+
+  if (kind === "laba-rugi" || kind === "neraca") {
+    if (!/^\d{4}-\d{2}$/.test(id)) return missing();
+    const finance = computeFinance(db, id);
+    return pdfResponse(
+      await renderDocumentPdf(
+        createElement(kind === "laba-rugi" ? LabaRugiDocument : NeracaDocument, {
+          profile: db.profile,
+          finance,
+        }),
+      ),
+      pdfFilename(id, kind),
     );
   }
 

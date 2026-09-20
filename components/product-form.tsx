@@ -86,6 +86,11 @@ export function ProductForm({ product }: { product?: Product }) {
         <Field label="Deskripsi">
           <Textarea name="description" defaultValue={product?.description} />
         </Field>
+        {product ? null : (
+          <p className="text-sm text-muted-foreground">
+            Setelah barang tersimpan, unggah foto di halaman detail. File cetak hanya untuk kategori Percetakan.
+          </p>
+        )}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {saved ? <p className="text-sm text-ok">Tersimpan.</p> : null}
         <div>

@@ -1,7 +1,8 @@
 import { formatDate, formatNumber, formatRupiah, terbilang, dayName } from "@/lib/format";
 import { invoiceDpp, invoicePpn, invoiceSubtotal } from "@/lib/finance";
 import { formatBankLine } from "@/lib/banks";
-import type { BankAccount, BeritaAcara, CompanyProfile, Customer, Invoice, Quotation, SuratJalan } from "@/lib/types";
+import type { BankAccount, BeritaAcara, CompanyProfile, Customer, Invoice, Payroll, Quotation, SuratJalan } from "@/lib/types";
+import { PAYEE_KIND_LABEL, WORK_TYPE_LABEL, payrollItemAmount, payrollKindTotal, payrollTotal } from "@/lib/payroll";
 import { QUOTATION_KIND_LABEL } from "@/lib/quotations";
 
 export const COMPANY_LOGO_SRC = "/logo/logo.png";
@@ -464,6 +465,106 @@ export function QuotationDocument({
           <div className="doc-sign-space" />
           <p className="doc-sign-name">{profile.owner}</p>
           <p className="doc-muted">{profile.ownerTitle}</p>
+        </div>
+      </footer>
+    </article>
+  );
+}
+
+export function PayrollDocument({
+  profile,
+  payroll,
+  orderNumber,
+}: {
+  profile: CompanyProfile;
+  payroll: Payroll;
+  orderNumber?: string | null;
+}) {
+  const total = payrollTotal(payroll);
+  const upah = payrollKindTotal(payroll, "pekerja");
+  const nota = payrollKindTotal(payroll, "vendor");
+  const city = profile.city.split(",")[0];
+  return (
+    <article className="doc-sheet">
+      <header className="doc-header doc-header-brand">
+        <CompanyBlock profile={profile} />
+        <div className="doc-meta">
+          <p className="doc-kicker">Rincian penggajian</p>
+          <p className="doc-number">{payroll.number}</p>
+          <p className="doc-date">Tanggal: {formatDate(payroll.date)}</p>
+          {orderNumber ? <p className="doc-muted">Order {orderNumber}</p> : null}
+        </div>
+      </header>
+      <p className="doc-body">
+        Upah mengikuti jumlah orang dan volume pekerjaan. Nota dari perusahaan luar (desain, cetak, dan sejenisnya)
+        dicatat pada baris vendor.
+      </p>
+      <table className="doc-table">
+        <thead>
+          <tr>
+            <th className="col-no">No</th>
+            <th>Penerima</th>
+            <th>Pekerjaan</th>
+            <th className="col-qty">Qty</th>
+            <th className="col-sat">Sat</th>
+            <th className="col-price">Tarif</th>
+            <th className="col-amount">Jumlah</th>
+          </tr>
+        </thead>
+        <tbody>
+          {payroll.items.map((item, index) => (
+            <tr key={item.id}>
+              <td className="col-no">{index + 1}</td>
+              <td>
+                <span className="doc-item-name">{item.payeeName}</span>
+                <span className="doc-spec">
+                  {PAYEE_KIND_LABEL[item.kind]}
+                  {item.description ? ` · ${item.description}` : ""}
+                </span>
+              </td>
+              <td>{WORK_TYPE_LABEL[item.workType]}</td>
+              <td className="col-qty">{formatNumber(item.qty)}</td>
+              <td className="col-sat">{item.unit}</td>
+              <td className="col-price">{formatRupiah(item.rate)}</td>
+              <td className="col-amount">{formatRupiah(payrollItemAmount(item))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <section className="doc-totals-wrap">
+        <div className="doc-notes">
+          <p className="doc-label">Terbilang</p>
+          <p className="doc-terbilang">{terbilang(total)}</p>
+          {payroll.notes ? <p className="doc-note-block">{payroll.notes}</p> : null}
+        </div>
+        <dl className="doc-totals">
+          <div className="doc-totals-line">
+            <dt>Upah pekerja</dt>
+            <dd>{formatRupiah(upah)}</dd>
+          </div>
+          <div className="doc-totals-line">
+            <dt>Nota produksi luar</dt>
+            <dd>{formatRupiah(nota)}</dd>
+          </div>
+          <div className="doc-totals-grand">
+            <dt>Total</dt>
+            <dd>{formatRupiah(total)}</dd>
+          </div>
+        </dl>
+      </section>
+      <footer className="doc-signs">
+        <div>
+          <p>Diterima</p>
+          <div className="doc-sign-space" />
+          <p className="doc-sign-name">................</p>
+        </div>
+        <div>
+          <p>
+            {city}, {formatDate(payroll.date)}
+          </p>
+          <p>{profile.ownerTitle}</p>
+          <div className="doc-sign-space" />
+          <p className="doc-sign-name">{profile.owner}</p>
         </div>
       </footer>
     </article>

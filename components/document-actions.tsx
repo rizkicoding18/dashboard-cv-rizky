@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2Icon } from "lucide-react";
+import Link from "next/link";
+import { ChevronDownIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/form-controls";
 import { PrintButton } from "@/components/print-button";
 import { ButtonLink } from "@/components/shared";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function filenameFromResponse(response: Response, href: string) {
   const header = response.headers.get("Content-Disposition");
@@ -25,6 +32,22 @@ function filenameFromResponse(response: Response, href: string) {
   return `${parts.at(-2) ?? "dokumen"}-${parts.at(-1) ?? "file"}.pdf`;
 }
 
+async function downloadPdfFile(href: string) {
+  const response = await fetch(href, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(response.status === 404 ? "Dokumen tidak ditemukan" : "Gagal mengunduh PDF");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filenameFromResponse(response, href);
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function DownloadPdfButton({
   href,
   label,
@@ -42,19 +65,7 @@ export function DownloadPdfButton({
     if (loading) return;
     setLoading(true);
     try {
-      const response = await fetch(href, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(response.status === 404 ? "Dokumen tidak ditemukan" : "Gagal mengunduh PDF");
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filenameFromResponse(response, href);
-      document.body.append(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      await downloadPdfFile(href);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal mengunduh PDF");
     } finally {
@@ -75,6 +86,50 @@ export function DownloadPdfButton({
       {loading ? <Loader2Icon className="animate-spin" /> : null}
       {loading && size !== "sm" ? "Mengunduh..." : label}
     </Button>
+  );
+}
+
+export function ReportExportMenu({
+  label,
+  pdfHref,
+  printHref,
+}: {
+  label: string;
+  pdfHref: string;
+  printHref: string;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  async function download() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await downloadPdfFile(pdfHref);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengunduh PDF");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" disabled={loading} aria-busy={loading}>
+          {loading ? <Loader2Icon className="animate-spin" /> : null}
+          {loading ? "Mengunduh..." : label}
+          {loading ? null : <ChevronDownIcon />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuItem disabled={loading} onSelect={() => void download()}>
+          Download PDF
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={printHref}>Cetak</Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

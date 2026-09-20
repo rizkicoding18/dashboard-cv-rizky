@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { deleteInvoice, deleteSuratJalan, issueInvoice } from "@/app/actions";
+import { deleteInvoice, deleteSuratJalan, issueInvoice, removeOrderTaxInvoice, uploadOrderTaxInvoice } from "@/app/actions";
 import { DownloadPdfButton } from "@/components/document-actions";
+import { CompactFileUpload } from "@/components/file-uploads";
 import { InvoiceForm } from "@/components/invoice-form";
 import { ConfirmSubmit } from "@/components/line-items";
 import { PaymentForm } from "@/components/money-forms";
@@ -19,8 +20,11 @@ import {
   Td,
   Th,
 } from "@/components/shared";
-import { invoiceOutstanding, invoiceTotal, isIssued } from "@/lib/finance";
+import { formatBankOption } from "@/lib/banks";
+import { invoiceDpp, invoiceOutstanding, invoicePpn, invoiceSubtotal, invoiceTotal, isIssued } from "@/lib/finance";
+import { filePublicUrl, needsTaxInvoice, uploadAccept } from "@/lib/file-meta";
 import { formatDate, formatNumber, formatRupiah } from "@/lib/format";
+import { payrollTotal } from "@/lib/payroll";
 import { readDb } from "@/lib/store";
 
 export default async function InvoiceDetailPage({
@@ -37,9 +41,14 @@ export default async function InvoiceDetailPage({
   const payments = db.payments.filter((row) => row.invoiceId === invoice.id);
   const ba = db.beritaAcaras.find((row) => row.invoiceId === invoice.id);
   const sjList = db.suratJalans.filter((row) => row.invoiceId === invoice.id);
+  const order = invoice.orderId ? db.orders.find((row) => row.id === invoice.orderId) : null;
+  const payrolls = order ? db.payrolls.filter((row) => row.orderId === order.id) : [];
   const issued = isIssued(invoice.status);
   const total = invoiceTotal(invoice);
   const outstanding = invoiceOutstanding(invoice);
+  const taxBase = order ? invoiceSubtotal(order.items) : total;
+  const taxMissing = Boolean(order && needsTaxInvoice(taxBase) && !order.taxInvoice);
+  const invoiceAmount = invoiceDpp(invoice) + invoicePpn(invoice);
   const docs = issued
     ? [
         {
@@ -47,19 +56,46 @@ export default async function InvoiceDetailPage({
           kind: "Invoice",
           number: invoice.number,
           date: invoice.date,
-          printHref: `/cetak/invoice/${invoice.id}`,
-          pdfHref: `/api/pdf/invoice/${invoice.id}`,
-          deleteId: null as string | null,
+          amount: invoiceAmount,
+          printHref: `/cetak/invoice/${invoice.id}` as string | null,
+          pdfHref: `/api/pdf/invoice/${invoice.id}` as string | null,
+          openHref: null as string | null,
+          openExternal: false,
+          deleteAction: null as (() => Promise<unknown>) | null,
+          deleteMessage: "",
         },
         {
           id: `faktur-${invoice.id}`,
           kind: "Faktur",
           number: invoice.fakturNumber || invoice.number,
           date: invoice.date,
-          printHref: `/cetak/faktur/${invoice.id}`,
-          pdfHref: `/api/pdf/faktur/${invoice.id}`,
-          deleteId: null as string | null,
+          amount: invoiceAmount,
+          printHref: `/cetak/faktur/${invoice.id}` as string | null,
+          pdfHref: `/api/pdf/faktur/${invoice.id}` as string | null,
+          openHref: null,
+          openExternal: false,
+          deleteAction: null,
+          deleteMessage: "",
         },
+        ...(order?.taxInvoice
+          ? [
+              {
+                id: order.taxInvoice.id,
+                kind: "Faktur pajak",
+                number: order.taxInvoice.name,
+                date: order.taxInvoice.uploadedAt,
+                amount: null as number | null,
+                printHref: null,
+                pdfHref: order.taxInvoice.name.toLowerCase().endsWith(".pdf")
+                  ? filePublicUrl(order.taxInvoice)
+                  : null,
+                openHref: filePublicUrl(order.taxInvoice),
+                openExternal: true,
+                deleteAction: removeOrderTaxInvoice.bind(null, order.id) as (() => Promise<unknown>) | null,
+                deleteMessage: "Hapus faktur pajak ini?",
+              },
+            ]
+          : []),
         ...(ba
           ? [
               {
@@ -67,9 +103,13 @@ export default async function InvoiceDetailPage({
                 kind: "Berita acara",
                 number: ba.number,
                 date: ba.date,
-                printHref: `/cetak/ba/${ba.id}`,
-                pdfHref: `/api/pdf/ba/${ba.id}`,
-                deleteId: null as string | null,
+                amount: null as number | null,
+                printHref: `/cetak/ba/${ba.id}` as string | null,
+                pdfHref: `/api/pdf/ba/${ba.id}` as string | null,
+                openHref: `/dokumen/ba/${ba.id}` as string | null,
+                openExternal: false,
+                deleteAction: null,
+                deleteMessage: "",
               },
             ]
           : []),
@@ -78,9 +118,26 @@ export default async function InvoiceDetailPage({
           kind: "Surat jalan",
           number: sj.number,
           date: sj.date,
-          printHref: `/cetak/sj/${sj.id}`,
-          pdfHref: `/api/pdf/sj/${sj.id}`,
-          deleteId: sj.id,
+          amount: null as number | null,
+          printHref: `/cetak/sj/${sj.id}` as string | null,
+          pdfHref: `/api/pdf/sj/${sj.id}` as string | null,
+          openHref: null as string | null,
+          openExternal: false,
+          deleteAction: deleteSuratJalan.bind(null, sj.id) as (() => Promise<unknown>) | null,
+          deleteMessage: "Hapus surat jalan ini?",
+        })),
+        ...payrolls.map((payroll) => ({
+          id: payroll.id,
+          kind: "Penggajian",
+          number: payroll.number,
+          date: payroll.date,
+          amount: payrollTotal(payroll),
+          printHref: `/cetak/gaji/${payroll.id}` as string | null,
+          pdfHref: `/api/pdf/gaji/${payroll.id}` as string | null,
+          openHref: `/gaji/${payroll.id}` as string | null,
+          openExternal: false,
+          deleteAction: null as (() => Promise<unknown>) | null,
+          deleteMessage: "",
         })),
       ]
     : [];
@@ -132,6 +189,7 @@ export default async function InvoiceDetailPage({
             Lihat order
           </Link>
         ) : null}
+        {taxMissing ? <Badge tone="warn">Faktur pajak</Badge> : null}
       </div>
 
       {issued ? (
@@ -183,13 +241,15 @@ export default async function InvoiceDetailPage({
             </div>
           </Card>
 
-          <Card className="overflow-hidden">
-            <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <Card>
+            <div className="grid gap-3 border-b border-border px-5 py-4">
               <div>
                 <h2 className="font-heading text-lg">Dokumen</h2>
-                <p className="text-sm text-muted-foreground">Invoice, faktur, BA, dan surat jalan dalam satu daftar.</p>
+                <p className="text-sm text-muted-foreground">
+                  Invoice, faktur, faktur pajak, BA, surat jalan, dan penggajian.
+                </p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <ButtonLink href={`/dokumen/invoice/${invoice.id}/sj/baru`} variant="outline" size="sm">
                   Surat jalan
                 </ButtonLink>
@@ -197,6 +257,18 @@ export default async function InvoiceDetailPage({
                   <ButtonLink href={`/dokumen/ba/baru?invoiceId=${invoice.id}`} variant="outline" size="sm">
                     Buat BA
                   </ButtonLink>
+                ) : null}
+                {order ? (
+                  <>
+                    <ButtonLink href={`/gaji/baru?orderId=${order.id}`} variant="outline" size="sm">
+                      Upah / nota
+                    </ButtonLink>
+                    <CompactFileUpload
+                      action={uploadOrderTaxInvoice.bind(null, order.id)}
+                      accept={uploadAccept("tax")}
+                      label={order.taxInvoice ? "Ganti faktur pajak" : "Faktur pajak"}
+                    />
+                  </>
                 ) : null}
               </div>
             </div>
@@ -216,19 +288,29 @@ export default async function InvoiceDetailPage({
                           <p className="mt-1 font-medium">{doc.number}</p>
                           <p className="text-xs text-muted-foreground">{formatDate(doc.date)}</p>
                         </div>
+                        {doc.amount != null ? (
+                          <span className="text-sm font-medium">{formatRupiah(doc.amount)}</span>
+                        ) : null}
                       </div>
-                      <DocRowActions printHref={doc.printHref} pdfHref={doc.pdfHref} deleteId={doc.deleteId} />
+                      <DocRowActions
+                        openHref={doc.openHref}
+                        printHref={doc.printHref}
+                        pdfHref={doc.pdfHref}
+                        deleteAction={doc.deleteAction}
+                        deleteMessage={doc.deleteMessage}
+                      />
                     </div>
                   ))}
                 </div>
-                <div className="hidden md:block">
+                <div className="hidden overflow-x-auto md:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <Th>Jenis</Th>
-                        <Th>Nomor</Th>
-                        <Th>Tanggal</Th>
-                        <Th>Aksi</Th>
+                    <Th>Jenis</Th>
+                    <Th>Nomor</Th>
+                    <Th>Tanggal</Th>
+                    <Th>Nilai</Th>
+                    <Th>Aksi</Th>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -237,10 +319,30 @@ export default async function InvoiceDetailPage({
                           <Td>
                             <Badge tone="neutral">{doc.kind}</Badge>
                           </Td>
-                          <Td className="font-medium">{doc.number}</Td>
-                          <Td>{formatDate(doc.date)}</Td>
                           <Td>
-                            <DocRowActions printHref={doc.printHref} pdfHref={doc.pdfHref} deleteId={doc.deleteId} />
+                            {doc.openHref ? (
+                              <Link
+                                href={doc.openHref}
+                                className="font-medium text-primary"
+                                target={doc.openExternal ? "_blank" : undefined}
+                                rel={doc.openExternal ? "noreferrer" : undefined}
+                              >
+                                {doc.number}
+                              </Link>
+                            ) : (
+                              <span className="font-medium">{doc.number}</span>
+                            )}
+                          </Td>
+                          <Td>{formatDate(doc.date)}</Td>
+                          <Td>{doc.amount != null ? formatRupiah(doc.amount) : "—"}</Td>
+                          <Td>
+                            <DocRowActions
+                              openHref={doc.openHref}
+                              printHref={doc.printHref}
+                              pdfHref={doc.pdfHref}
+                              deleteAction={doc.deleteAction}
+                              deleteMessage={doc.deleteMessage}
+                            />
                           </Td>
                         </TableRow>
                       ))}
@@ -256,17 +358,45 @@ export default async function InvoiceDetailPage({
             <p className="mb-4 text-sm text-muted-foreground">
               Total {formatRupiah(total)} · sisa {formatRupiah(outstanding)}
             </p>
-            {invoice.status !== "lunas" ? <PaymentForm invoiceId={invoice.id} /> : null}
+            {invoice.status !== "lunas" ? (
+              <PaymentForm
+                invoiceId={invoice.id}
+                banks={db.banks}
+                defaultBankId={invoice.bankId}
+              />
+            ) : null}
             {payments.length > 0 ? (
-              <ul className="mt-4 grid gap-2 border-t border-border pt-4 text-sm">
-                {payments.map((payment) => (
-                  <li key={payment.id} className="flex justify-between">
-                    <span>
-                      {payment.date} · {payment.method}
-                    </span>
-                    <span>{formatRupiah(payment.amount)}</span>
-                  </li>
-                ))}
+              <ul className="mt-4 grid gap-3 border-t border-border pt-4 text-sm">
+                {payments.map((payment) => {
+                  const bank = db.banks.find((row) => row.id === payment.bankId);
+                  const proofHref = payment.proof ? filePublicUrl(payment.proof) : null;
+                  return (
+                    <li key={payment.id} className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p>
+                          {formatDate(payment.date)} · {payment.method === "tunai" ? "Tunai" : payment.method === "giro" ? "Giro" : "Transfer"}
+                        </p>
+                        {bank ? (
+                          <p className="mt-0.5 text-muted-foreground">{formatBankOption(bank)}</p>
+                        ) : null}
+                        {payment.notes ? (
+                          <p className="mt-0.5 text-muted-foreground">{payment.notes}</p>
+                        ) : null}
+                        {proofHref ? (
+                          <a
+                            href={proofHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 inline-block font-medium text-primary"
+                          >
+                            Bukti: {payment.proof?.name}
+                          </a>
+                        ) : null}
+                      </div>
+                      <span className="shrink-0 font-medium">{formatRupiah(payment.amount)}</span>
+                    </li>
+                  );
+                })}
               </ul>
             ) : invoice.status === "lunas" ? (
               <p className="text-sm text-muted-foreground">Sudah lunas.</p>
@@ -288,26 +418,33 @@ export default async function InvoiceDetailPage({
 }
 
 function DocRowActions({
+  openHref,
   printHref,
   pdfHref,
-  deleteId,
+  deleteAction,
+  deleteMessage,
 }: {
-  printHref: string;
-  pdfHref: string;
-  deleteId: string | null;
+  openHref: string | null;
+  printHref: string | null;
+  pdfHref: string | null;
+  deleteAction: (() => Promise<unknown>) | null;
+  deleteMessage: string;
 }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2 md:mt-0">
-      <ButtonLink href={printHref} variant="outline" size="sm">
-        Cetak
-      </ButtonLink>
-      <DownloadPdfButton href={pdfHref} label="PDF" size="sm" />
-      {deleteId ? (
-        <ConfirmSubmit
-          label="Hapus"
-          message="Hapus surat jalan ini?"
-          action={deleteSuratJalan.bind(null, deleteId)}
-        />
+      {openHref ? (
+        <ButtonLink href={openHref} variant="outline" size="sm">
+          Buka
+        </ButtonLink>
+      ) : null}
+      {printHref ? (
+        <ButtonLink href={printHref} variant="outline" size="sm">
+          Cetak
+        </ButtonLink>
+      ) : null}
+      {pdfHref ? <DownloadPdfButton href={pdfHref} label="PDF" size="sm" /> : null}
+      {deleteAction ? (
+        <ConfirmSubmit label="Hapus" message={deleteMessage} action={deleteAction} />
       ) : null}
     </div>
   );

@@ -17,7 +17,7 @@ export default async function DashboardPage() {
 
   const kpis = [
     { label: "Omzet bulan ini", value: formatRupiah(finance.omzetBulanIni), hint: formatMonth(month) },
-    { label: "Laba bulan ini", value: formatRupiah(finance.labaBulanIni), hint: "Setelah HPP dan beban" },
+    { label: "Laba bulan ini", value: formatRupiah(finance.labaBulanIni), hint: "Setelah HPP, beban, upah, dan nota luar" },
     { label: "Piutang", value: formatRupiah(finance.piutang), hint: `${unpaid.length} faktur belum lunas` },
     { label: "Kas", value: formatRupiah(finance.kas), hint: "Saldo kas & bank" },
   ];

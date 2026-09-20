@@ -74,6 +74,51 @@ export function formatNumber(value: number): string {
   return `${sign}${grouped},${frac.replace(/0+$/, "")}`;
 }
 
+export function parseGroupedNumber(raw: string): number {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return 0;
+  const negative = trimmed.startsWith("-");
+  const cleaned = trimmed.replace(/[^\d,]/g, "");
+  const comma = cleaned.lastIndexOf(",");
+  const intPart = (comma >= 0 ? cleaned.slice(0, comma) : cleaned).replace(/\D/g, "");
+  const frac = comma >= 0 ? cleaned.slice(comma + 1).replace(/\D/g, "").slice(0, 4) : "";
+  const n = Number(frac ? `${intPart || "0"}.${frac}` : intPart || "0");
+  if (!Number.isFinite(n)) return 0;
+  return negative ? -n : n;
+}
+
+export function formatGroupedNumber(value: number, decimals = 0): string {
+  if (!Number.isFinite(value)) return "";
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  if (decimals > 0) {
+    const [int, frac] = abs.toFixed(decimals).split(".");
+    const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const trimmed = frac.replace(/0+$/, "");
+    return trimmed ? `${sign}${grouped},${trimmed}` : `${sign}${grouped}`;
+  }
+  return `${sign}${Math.round(abs).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}
+
+export function formatGroupedTyping(raw: string, allowDecimal = false): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "-") return trimmed === "-" ? "-" : "";
+  const negative = trimmed.startsWith("-");
+  const sign = negative ? "-" : "";
+  if (allowDecimal && trimmed.includes(",")) {
+    const body = trimmed.slice(negative ? 1 : 0);
+    const [intRaw, ...rest] = body.split(",");
+    const intDigits = intRaw.replace(/\D/g, "");
+    const frac = rest.join("").replace(/\D/g, "").slice(0, 4);
+    const grouped = (intDigits || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const keepComma = body.endsWith(",") || frac.length > 0;
+    return `${sign}${grouped}${keepComma ? `,${frac}` : ""}`;
+  }
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return sign;
+  return `${sign}${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}
+
 export function formatDate(iso: string): string {
   if (!iso) return "—";
   const [year, month, day] = iso.slice(0, 10).split("-").map(Number);

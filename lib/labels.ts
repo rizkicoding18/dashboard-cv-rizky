@@ -38,6 +38,7 @@ export const EXPENSE_LABEL: Record<ExpenseCategory, string> = {
 
 export const UNIT_OPTIONS = [
   "pcs",
+  "Unit",
   "box",
   "rim",
   "lembar",
@@ -46,4 +47,7 @@ export const UNIT_OPTIONS = [
   "eksemplar",
   "paket",
   "set",
+  "jam",
+  "nota",
+  "pekerjaan",
 ];

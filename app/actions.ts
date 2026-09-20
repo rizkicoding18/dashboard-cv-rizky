@@ -13,7 +13,8 @@ import { createId, nextNumber } from "@/lib/ids";
 import { createSeed } from "@/lib/seed";
 import { readDb, replaceDb, updateDb } from "@/lib/store";
 import { setDefaultBank, syncProfileBank } from "@/lib/banks";
-import { todayIso } from "@/lib/format";
+import { removeUpload, saveUpload } from "@/lib/files";
+import { todayIso, parseGroupedNumber } from "@/lib/format";
 import type {
   BankAccount,
   BaItem,
@@ -21,18 +22,25 @@ import type {
   Customer,
   DraftBaLine,
   DraftLine,
+  DraftPayrollLine,
   DraftSjLine,
   Expense,
   ExpenseCategory,
   Invoice,
   LineItem,
   OrderStatus,
+  Payee,
+  PayeeKind,
   PaymentMethod,
+  Payroll,
+  PayrollItem,
   Product,
   ProductCategory,
+  StoredFile,
   Quotation,
   QuotationKind,
   SuratJalanItem,
+  WorkType,
 } from "@/lib/types";
 import { buildSphFromOrder, QUOTATION_NUMBER_PREFIX } from "@/lib/quotations";
 
@@ -200,6 +208,8 @@ export async function createProduct(input: {
       defaultPrice: Number(input.defaultPrice) || 0,
       trackStock: Boolean(input.trackStock),
       description: input.description.trim(),
+      photo: null,
+      printFiles: [],
       createdAt: new Date().toISOString(),
     };
     db.products.unshift(row);
@@ -301,6 +311,8 @@ export async function createOrder(input: {
       status: "baru" as const,
       notes: input.notes.trim(),
       items,
+      taxInvoice: null,
+      spk: null,
       createdAt: new Date().toISOString(),
     };
     db.orders.unshift(row);
@@ -346,15 +358,22 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
 }
 
 export async function deleteOrder(id: string) {
+  let taxFile: StoredFile | null = null;
+  let spkFile: StoredFile | null = null;
   await updateDb((db) => {
     const linked =
       db.invoices.some((row) => row.orderId === id) ||
       db.suratJalans.some((row) => row.orderId === id) ||
       db.beritaAcaras.some((row) => row.orderId === id);
     if (linked) throw new Error("Order sudah punya invoice atau dokumen kirim, tidak bisa dihapus.");
+    const order = db.orders.find((row) => row.id === id);
+    taxFile = order?.taxInvoice ?? null;
+    spkFile = order?.spk ?? null;
     db.quotations = db.quotations.filter((row) => row.orderId !== id);
     db.orders = db.orders.filter((row) => row.id !== id);
   });
+  await removeUpload(taxFile);
+  await removeUpload(spkFile);
   refresh();
   redirect("/order");
 }
@@ -474,36 +493,53 @@ export async function deleteInvoice(id: string) {
   redirect("/dokumen");
 }
 
-export async function addPayment(input: {
-  invoiceId: string;
-  date: string;
-  amount: number;
-  method: PaymentMethod;
-  notes: string;
-}) {
-  const amount = Number(input.amount) || 0;
+export async function addPayment(invoiceId: string, formData: FormData) {
+  const amount = parseGroupedNumber(String(formData.get("amount") || ""));
   if (amount <= 0) return { error: "Nominal pembayaran harus lebih dari 0." };
+  const method = (String(formData.get("method") || "transfer") || "transfer") as PaymentMethod;
+  if (!["tunai", "transfer", "giro"].includes(method)) return { error: "Metode pembayaran tidak valid." };
+  const bankId = String(formData.get("bankId") || "").trim();
+  if (!bankId) return { error: "Pilih rekening bank penerima." };
+  const date = String(formData.get("date") || todayIso());
+  const notes = String(formData.get("notes") || "").trim();
+  const file = formFiles(formData)[0];
+
   const snapshot = await readDb();
-  const current = snapshot.invoices.find((row) => row.id === input.invoiceId);
+  const current = snapshot.invoices.find((row) => row.id === invoiceId);
   if (!current) throw new Error("Faktur tidak ditemukan");
   if (!isIssued(current.status)) throw new Error("Faktur belum terbit.");
+  if (!snapshot.banks.some((bank) => bank.id === bankId)) return { error: "Rekening bank tidak ditemukan." };
   const outstanding = invoiceTotal(current) - current.paidAmount;
   if (amount > outstanding) return { error: "Nominal melebihi sisa tagihan." };
 
-  await updateDb((db) => {
-    const invoice = db.invoices.find((row) => row.id === input.invoiceId);
-    if (!invoice) throw new Error("Faktur tidak ditemukan");
-    db.payments.push({
-      id: createId("pay"),
-      invoiceId: invoice.id,
-      date: input.date || todayIso(),
-      amount,
-      method: input.method,
-      notes: input.notes.trim(),
+  let proof: StoredFile | null = null;
+  if (file) {
+    const saved = await saveUpload(file, `payments/${invoiceId}`, "proof");
+    if ("error" in saved) return saved;
+    proof = saved;
+  }
+
+  try {
+    await updateDb((db) => {
+      const invoice = db.invoices.find((row) => row.id === invoiceId);
+      if (!invoice) throw new Error("Faktur tidak ditemukan");
+      db.payments.push({
+        id: createId("pay"),
+        invoiceId: invoice.id,
+        date: date || todayIso(),
+        amount,
+        method,
+        bankId,
+        proof,
+        notes,
+      });
+      invoice.paidAmount += amount;
+      invoice.status = deriveInvoiceStatus(invoice);
     });
-    invoice.paidAmount += amount;
-    invoice.status = deriveInvoiceStatus(invoice);
-  });
+  } catch (error) {
+    await removeUpload(proof);
+    throw error;
+  }
   refresh();
 }
 
@@ -902,6 +938,305 @@ export async function deleteQuotation(id: string) {
   });
   refresh();
   redirect(orderId ? `/order/${orderId}` : "/order");
+}
+
+function toPayrollLines(drafts: DraftPayrollLine[], payees: Payee[]): PayrollItem[] {
+  return drafts
+    .map((row) => {
+      const payee = payees.find((item) => item.id === row.payeeId);
+      const qty = Number(row.qty) || 0;
+      const rate = Number(row.rate) || 0;
+      if (!payee || qty <= 0 || rate < 0) return null;
+      const workType: WorkType =
+        row.workType === "desain" ||
+        row.workType === "cetak" ||
+        row.workType === "finishing" ||
+        row.workType === "packing"
+          ? row.workType
+          : "lainnya";
+      return {
+        id: createId("pr_i"),
+        payeeId: payee.id,
+        payeeName: payee.name,
+        kind: payee.kind,
+        workType,
+        description: row.description.trim(),
+        qty,
+        unit: row.unit.trim() || (payee.kind === "vendor" ? "nota" : "pekerjaan"),
+        rate,
+      };
+    })
+    .filter((row): row is PayrollItem => Boolean(row));
+}
+
+export async function createPayee(input: { kind: PayeeKind; name: string; phone: string; notes: string }) {
+  if (!input.name.trim()) return { error: "Nama penerima wajib diisi." };
+  const payee = await updateDb((db) => {
+    const row: Payee = {
+      id: createId("payee"),
+      kind: input.kind === "vendor" ? "vendor" : "pekerja",
+      name: input.name.trim(),
+      phone: input.phone.trim(),
+      notes: input.notes.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    db.payees.unshift(row);
+    return row;
+  });
+  refresh();
+  redirect(`/gaji/penerima/${payee.id}`);
+}
+
+export async function updatePayee(
+  id: string,
+  input: { kind: PayeeKind; name: string; phone: string; notes: string },
+) {
+  if (!input.name.trim()) return { error: "Nama penerima wajib diisi." };
+  await updateDb((db) => {
+    const row = db.payees.find((item) => item.id === id);
+    if (!row) throw new Error("Penerima tidak ditemukan");
+    row.kind = input.kind === "vendor" ? "vendor" : "pekerja";
+    row.name = input.name.trim();
+    row.phone = input.phone.trim();
+    row.notes = input.notes.trim();
+  });
+  refresh();
+}
+
+export async function deletePayee(id: string) {
+  await updateDb((db) => {
+    if (db.payrolls.some((row) => row.items.some((item) => item.payeeId === id))) {
+      throw new Error("Penerima sudah dipakai di rincian gaji, tidak bisa dihapus.");
+    }
+    db.payees = db.payees.filter((row) => row.id !== id);
+  });
+  refresh();
+  redirect("/gaji/penerima");
+}
+
+export async function createPayroll(input: {
+  date: string;
+  orderId: string | null;
+  notes: string;
+  paid: boolean;
+  method: PaymentMethod | "";
+  items: DraftPayrollLine[];
+}) {
+  const result = await updateDb((db) => {
+    const items = toPayrollLines(input.items, db.payees);
+    if (!items.length) return { error: "Tambahkan minimal satu baris upah atau nota." };
+    const paid = Boolean(input.paid);
+    const row: Payroll = {
+      id: createId("payr"),
+      number: nextNumber(
+        "GJ",
+        db.payrolls.map((item) => item.number),
+      ),
+      date: input.date || todayIso(),
+      orderId: input.orderId || null,
+      status: paid ? "lunas" : "terbit",
+      notes: input.notes.trim(),
+      method: paid ? input.method || "tunai" : "",
+      paidAt: paid ? input.date || todayIso() : null,
+      items,
+      createdAt: new Date().toISOString(),
+    };
+    db.payrolls.unshift(row);
+    return row;
+  });
+  if ("error" in result) return result;
+  refresh();
+  redirect(`/gaji/${result.id}`);
+}
+
+export async function updatePayroll(
+  id: string,
+  input: {
+    date: string;
+    orderId: string | null;
+    notes: string;
+    items: DraftPayrollLine[];
+  },
+) {
+  const result = await updateDb((db) => {
+    const row = db.payrolls.find((item) => item.id === id);
+    if (!row) return { error: "Rincian gaji tidak ditemukan" };
+    if (row.status === "lunas") return { error: "Rincian yang sudah lunas tidak bisa diubah." };
+    const items = toPayrollLines(input.items, db.payees);
+    if (!items.length) return { error: "Tambahkan minimal satu baris upah atau nota." };
+    row.date = input.date || todayIso();
+    row.orderId = input.orderId || null;
+    row.notes = input.notes.trim();
+    row.items = items;
+    return row;
+  });
+  if ("error" in result) return result;
+  refresh();
+}
+
+export async function markPayrollPaid(id: string, method: PaymentMethod) {
+  await updateDb((db) => {
+    const row = db.payrolls.find((item) => item.id === id);
+    if (!row) throw new Error("Rincian gaji tidak ditemukan");
+    row.status = "lunas";
+    row.method = method || "tunai";
+    row.paidAt = todayIso();
+  });
+  refresh();
+}
+
+export async function deletePayroll(id: string) {
+  await updateDb((db) => {
+    db.payrolls = db.payrolls.filter((row) => row.id !== id);
+  });
+  refresh();
+  redirect("/gaji");
+}
+
+function formFiles(formData: FormData) {
+  const files: File[] = [];
+  for (const name of ["file", "files"]) {
+    for (const value of formData.getAll(name)) {
+      if (value instanceof File && value.size > 0) files.push(value);
+    }
+  }
+  return files;
+}
+
+export async function uploadProductPhoto(productId: string, formData: FormData) {
+  const file = formFiles(formData)[0];
+  if (!file) return { error: "Pilih foto barang." };
+  const saved = await saveUpload(file, `products/${productId}/photo`, "photo");
+  if ("error" in saved) return saved;
+  let previous: StoredFile | null = null;
+  try {
+    await updateDb((db) => {
+      const product = db.products.find((row) => row.id === productId);
+      if (!product) throw new Error("Barang tidak ditemukan");
+      previous = product.photo;
+      product.photo = saved;
+    });
+  } catch (error) {
+    await removeUpload(saved);
+    return { error: error instanceof Error ? error.message : "Gagal menyimpan foto." };
+  }
+  await removeUpload(previous);
+  refresh();
+}
+
+export async function removeProductPhoto(productId: string) {
+  let previous: StoredFile | null = null;
+  await updateDb((db) => {
+    const product = db.products.find((row) => row.id === productId);
+    if (!product) throw new Error("Barang tidak ditemukan");
+    previous = product.photo;
+    product.photo = null;
+  });
+  await removeUpload(previous);
+  refresh();
+}
+
+export async function uploadProductPrintFiles(productId: string, formData: FormData) {
+  const incoming = formFiles(formData);
+  if (!incoming.length) return { error: "Pilih file cetak." };
+  const saved: StoredFile[] = [];
+  for (const file of incoming) {
+    const result = await saveUpload(file, `products/${productId}/print`, "print");
+    if ("error" in result) {
+      await Promise.all(saved.map((item) => removeUpload(item)));
+      return result;
+    }
+    saved.push(result);
+  }
+  try {
+    await updateDb((db) => {
+      const product = db.products.find((row) => row.id === productId);
+      if (!product) throw new Error("Barang tidak ditemukan");
+      product.printFiles = [...(product.printFiles ?? []), ...saved];
+    });
+  } catch (error) {
+    await Promise.all(saved.map((item) => removeUpload(item)));
+    return { error: error instanceof Error ? error.message : "Gagal menyimpan file cetak." };
+  }
+  refresh();
+}
+
+export async function removeProductPrintFile(productId: string, fileId: string) {
+  let previous: StoredFile | null = null;
+  await updateDb((db) => {
+    const product = db.products.find((row) => row.id === productId);
+    if (!product) throw new Error("Barang tidak ditemukan");
+    previous = (product.printFiles ?? []).find((file) => file.id === fileId) ?? null;
+    product.printFiles = (product.printFiles ?? []).filter((file) => file.id !== fileId);
+  });
+  await removeUpload(previous);
+  refresh();
+}
+
+export async function uploadOrderTaxInvoice(orderId: string, formData: FormData) {
+  const file = formFiles(formData)[0];
+  if (!file) return { error: "Pilih file faktur pajak." };
+  const saved = await saveUpload(file, `orders/${orderId}/tax`, "tax");
+  if ("error" in saved) return saved;
+  let previous: StoredFile | null = null;
+  try {
+    await updateDb((db) => {
+      const order = db.orders.find((row) => row.id === orderId);
+      if (!order) throw new Error("Order tidak ditemukan");
+      previous = order.taxInvoice;
+      order.taxInvoice = saved;
+    });
+  } catch (error) {
+    await removeUpload(saved);
+    return { error: error instanceof Error ? error.message : "Gagal menyimpan faktur pajak." };
+  }
+  await removeUpload(previous);
+  refresh();
+}
+
+export async function removeOrderTaxInvoice(orderId: string) {
+  let previous: StoredFile | null = null;
+  await updateDb((db) => {
+    const order = db.orders.find((row) => row.id === orderId);
+    if (!order) throw new Error("Order tidak ditemukan");
+    previous = order.taxInvoice;
+    order.taxInvoice = null;
+  });
+  await removeUpload(previous);
+  refresh();
+}
+
+export async function uploadOrderSpk(orderId: string, formData: FormData) {
+  const file = formFiles(formData)[0];
+  if (!file) return { error: "Pilih file SPK." };
+  const saved = await saveUpload(file, `orders/${orderId}/spk`, "spk");
+  if ("error" in saved) return saved;
+  let previous: StoredFile | null = null;
+  try {
+    await updateDb((db) => {
+      const order = db.orders.find((row) => row.id === orderId);
+      if (!order) throw new Error("Order tidak ditemukan");
+      previous = order.spk;
+      order.spk = saved;
+    });
+  } catch (error) {
+    await removeUpload(saved);
+    return { error: error instanceof Error ? error.message : "Gagal menyimpan SPK." };
+  }
+  await removeUpload(previous);
+  refresh();
+}
+
+export async function removeOrderSpk(orderId: string) {
+  let previous: StoredFile | null = null;
+  await updateDb((db) => {
+    const order = db.orders.find((row) => row.id === orderId);
+    if (!order) throw new Error("Order tidak ditemukan");
+    previous = order.spk;
+    order.spk = null;
+  });
+  await removeUpload(previous);
+  refresh();
 }
 
 export async function resetDemoData() {

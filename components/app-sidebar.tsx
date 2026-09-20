@@ -8,6 +8,7 @@ import {
   Building2,
   ClipboardList,
   FileText,
+  HandCoins,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -50,6 +51,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Administrasi",
     items: [
       { href: "/dokumen", label: "Dokumen", icon: FileText },
+      { href: "/gaji", label: "Penggajian", icon: HandCoins },
       { href: "/bank", label: "Bank", icon: Landmark },
       { href: "/keuangan", label: "Keuangan", icon: Wallet },
       { href: "/pengaturan", label: "Pengaturan", icon: Settings },

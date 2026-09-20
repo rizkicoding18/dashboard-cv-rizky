@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  Badge,
   ButtonLink,
   Card,
   EmptyState,
@@ -14,6 +15,7 @@ import {
 import { OrderBadge } from "@/components/status";
 import { formatDate, formatRupiah } from "@/lib/format";
 import { invoiceSubtotal } from "@/lib/finance";
+import { needsTaxInvoice } from "@/lib/file-meta";
 import { readDb } from "@/lib/store";
 
 export default async function OrderPage() {
@@ -41,6 +43,8 @@ export default async function OrderPage() {
           <div className="grid gap-3 md:hidden">
             {rows.map((order) => {
               const customer = db.customers.find((row) => row.id === order.customerId);
+              const subtotal = invoiceSubtotal(order.items);
+              const taxMissing = needsTaxInvoice(subtotal) && !order.taxInvoice;
               return (
                 <Link key={order.id} href={`/order/${order.id}`}>
                   <Card className="p-4">
@@ -49,11 +53,14 @@ export default async function OrderPage() {
                         <p className="font-medium">{customer?.name}</p>
                         <p className="text-xs text-muted-foreground">{order.number}</p>
                       </div>
-                      <OrderBadge status={order.status} />
+                      <div className="flex flex-col items-end gap-1">
+                        <OrderBadge status={order.status} />
+                        {taxMissing ? <Badge tone="warn">Faktur pajak</Badge> : null}
+                      </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">{formatDate(order.date)}</span>
-                      <span className="font-medium">{formatRupiah(invoiceSubtotal(order.items))}</span>
+                      <span className="font-medium">{formatRupiah(subtotal)}</span>
                     </div>
                   </Card>
                 </Link>
@@ -74,6 +81,8 @@ export default async function OrderPage() {
               <TableBody>
                 {rows.map((order) => {
                   const customer = db.customers.find((row) => row.id === order.customerId);
+                  const subtotal = invoiceSubtotal(order.items);
+                  const taxMissing = needsTaxInvoice(subtotal) && !order.taxInvoice;
                   return (
                     <TableRow key={order.id}>
                       <Td>
@@ -83,9 +92,12 @@ export default async function OrderPage() {
                       </Td>
                       <Td>{customer?.name}</Td>
                       <Td>{formatDate(order.date)}</Td>
-                      <Td>{formatRupiah(invoiceSubtotal(order.items))}</Td>
+                      <Td>{formatRupiah(subtotal)}</Td>
                       <Td>
-                        <OrderBadge status={order.status} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <OrderBadge status={order.status} />
+                          {taxMissing ? <Badge tone="warn">Faktur pajak</Badge> : null}
+                        </div>
                       </Td>
                     </TableRow>
                   );

@@ -1,6 +1,7 @@
 import { Badge } from "@/components/form-controls";
 import { INVOICE_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/labels";
-import type { InvoiceStatus, OrderStatus } from "@/lib/types";
+import { PAYROLL_STATUS_LABEL } from "@/lib/payroll";
+import type { InvoiceStatus, OrderStatus, PayrollStatus } from "@/lib/types";
 
 export function OrderBadge({ status }: { status: OrderStatus }) {
   const tone =
@@ -20,4 +21,9 @@ export function InvoiceBadge({ status }: { status: InvoiceStatus }) {
             ? "accent"
             : "neutral";
   return <Badge tone={tone}>{INVOICE_STATUS_LABEL[status]}</Badge>;
+}
+
+export function PayrollBadge({ status }: { status: PayrollStatus }) {
+  const tone = status === "lunas" ? "ok" : status === "terbit" ? "warn" : "neutral";
+  return <Badge tone={tone}>{PAYROLL_STATUS_LABEL[status]}</Badge>;
 }

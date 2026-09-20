@@ -10,7 +10,9 @@ import type {
   Expense,
   Invoice,
   Order,
+  Payee,
   Payment,
+  Payroll,
   Product,
   Purchase,
   Quotation,
@@ -75,6 +77,8 @@ CREATE TABLE IF NOT EXISTS products (
   default_price REAL NOT NULL DEFAULT 0,
   track_stock INTEGER NOT NULL DEFAULT 1,
   description TEXT NOT NULL DEFAULT '',
+  photo TEXT NOT NULL DEFAULT '',
+  print_files TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL
 );
 
@@ -95,6 +99,8 @@ CREATE TABLE IF NOT EXISTS orders (
   status TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   items TEXT NOT NULL DEFAULT '[]',
+  tax_invoice TEXT NOT NULL DEFAULT '',
+  spk TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );
 
@@ -194,6 +200,8 @@ CREATE TABLE IF NOT EXISTS payments (
   date TEXT NOT NULL,
   amount REAL NOT NULL DEFAULT 0,
   method TEXT NOT NULL,
+  bank_id TEXT,
+  proof TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT ''
 );
 
@@ -207,6 +215,28 @@ CREATE TABLE IF NOT EXISTS stock_moves (
   ref_id TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   date TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payees (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payrolls (
+  id TEXT PRIMARY KEY,
+  number TEXT NOT NULL,
+  date TEXT NOT NULL,
+  order_id TEXT,
+  status TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  method TEXT NOT NULL DEFAULT '',
+  paid_at TEXT,
+  items TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id);
@@ -241,6 +271,16 @@ async function getClient() {
       });
       for (const statement of SCHEMA.split(";").map((part) => part.trim()).filter(Boolean)) {
         await client.execute(statement);
+      }
+      for (const statement of [
+        "ALTER TABLE products ADD COLUMN photo TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE products ADD COLUMN print_files TEXT NOT NULL DEFAULT '[]'",
+        "ALTER TABLE orders ADD COLUMN tax_invoice TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE orders ADD COLUMN spk TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE payments ADD COLUMN bank_id TEXT",
+        "ALTER TABLE payments ADD COLUMN proof TEXT NOT NULL DEFAULT ''",
+      ]) {
+        await client.execute(statement).catch(() => undefined);
       }
       return client;
     })();
@@ -307,6 +347,8 @@ export async function loadSqlDatabase(): Promise<Database | null> {
     expenses,
     payments,
     stockMoves,
+    payees,
+    payrolls,
   ] = await Promise.all([
     client.execute("SELECT * FROM banks"),
     client.execute("SELECT * FROM customers"),
@@ -321,6 +363,8 @@ export async function loadSqlDatabase(): Promise<Database | null> {
     client.execute("SELECT * FROM expenses"),
     client.execute("SELECT * FROM payments"),
     client.execute("SELECT * FROM stock_moves"),
+    client.execute("SELECT * FROM payees"),
+    client.execute("SELECT * FROM payrolls"),
   ]);
 
   return {
@@ -372,6 +416,8 @@ export async function loadSqlDatabase(): Promise<Database | null> {
       defaultPrice: num(row.default_price),
       trackStock: bool(row.track_stock),
       description: str(row.description),
+      photo: json<Product["photo"]>(row.photo, null),
+      printFiles: json(row.print_files, []),
       createdAt: str(row.created_at),
     })),
     customerPrices: customerPrices.rows.map((row) => ({
@@ -390,6 +436,8 @@ export async function loadSqlDatabase(): Promise<Database | null> {
       status: str(row.status) as Order["status"],
       notes: str(row.notes),
       items: json(row.items, []),
+      taxInvoice: json<Order["taxInvoice"]>(row.tax_invoice, null),
+      spk: json<Order["spk"]>(row.spk, null),
       createdAt: str(row.created_at),
     })),
     invoices: invoices.rows.map((row) => ({
@@ -482,6 +530,8 @@ export async function loadSqlDatabase(): Promise<Database | null> {
       date: str(row.date),
       amount: num(row.amount),
       method: str(row.method) as Payment["method"],
+      bankId: row.bank_id == null || row.bank_id === "" ? null : str(row.bank_id),
+      proof: json<Payment["proof"]>(row.proof, null),
       notes: str(row.notes),
     })),
     stockMoves: stockMoves.rows.map((row) => ({
@@ -495,12 +545,34 @@ export async function loadSqlDatabase(): Promise<Database | null> {
       notes: str(row.notes),
       date: str(row.date),
     })),
+    payees: payees.rows.map((row) => ({
+      id: str(row.id),
+      kind: str(row.kind) as Payee["kind"],
+      name: str(row.name),
+      phone: str(row.phone),
+      notes: str(row.notes),
+      createdAt: str(row.created_at),
+    })),
+    payrolls: payrolls.rows.map((row) => ({
+      id: str(row.id),
+      number: str(row.number),
+      date: str(row.date),
+      orderId: row.order_id == null ? null : str(row.order_id),
+      status: str(row.status) as Payroll["status"],
+      notes: str(row.notes),
+      method: str(row.method) as Payroll["method"],
+      paidAt: row.paid_at == null || row.paid_at === "" ? null : str(row.paid_at),
+      items: json(row.items, []),
+      createdAt: str(row.created_at),
+    })),
   };
 }
 
 export async function saveSqlDatabase(db: Database) {
   const client = await getClient();
   const statements: InStatement[] = [
+    { sql: "DELETE FROM payrolls" },
+    { sql: "DELETE FROM payees" },
     { sql: "DELETE FROM stock_moves" },
     { sql: "DELETE FROM payments" },
     { sql: "DELETE FROM expenses" },
@@ -593,6 +665,8 @@ export async function saveSqlDatabase(db: Database) {
           "default_price",
           "track_stock",
           "description",
+          "photo",
+          "print_files",
           "created_at",
         ],
         [
@@ -607,6 +681,8 @@ export async function saveSqlDatabase(db: Database) {
           product.defaultPrice,
           product.trackStock ? 1 : 0,
           product.description,
+          JSON.stringify(product.photo),
+          JSON.stringify(product.printFiles ?? []),
           product.createdAt,
         ],
       ),
@@ -621,7 +697,7 @@ export async function saveSqlDatabase(db: Database) {
     ...db.orders.map((order) =>
       insert(
         "orders",
-        ["id", "number", "customer_id", "date", "due_date", "status", "notes", "items", "created_at"],
+        ["id", "number", "customer_id", "date", "due_date", "status", "notes", "items", "tax_invoice", "spk", "created_at"],
         [
           order.id,
           order.number,
@@ -631,6 +707,8 @@ export async function saveSqlDatabase(db: Database) {
           order.status,
           order.notes,
           JSON.stringify(order.items),
+          JSON.stringify(order.taxInvoice ?? null),
+          JSON.stringify(order.spk ?? null),
           order.createdAt,
         ],
       ),
@@ -815,8 +893,17 @@ export async function saveSqlDatabase(db: Database) {
     ...db.payments.map((payment) =>
       insert(
         "payments",
-        ["id", "invoice_id", "date", "amount", "method", "notes"],
-        [payment.id, payment.invoiceId, payment.date, payment.amount, payment.method, payment.notes],
+        ["id", "invoice_id", "date", "amount", "method", "bank_id", "proof", "notes"],
+        [
+          payment.id,
+          payment.invoiceId,
+          payment.date,
+          payment.amount,
+          payment.method,
+          payment.bankId,
+          JSON.stringify(payment.proof ?? null),
+          payment.notes,
+        ],
       ),
     ),
     ...db.stockMoves.map((move) =>
@@ -833,6 +920,31 @@ export async function saveSqlDatabase(db: Database) {
           move.refId,
           move.notes,
           move.date,
+        ],
+      ),
+    ),
+    ...(db.payees ?? []).map((payee) =>
+      insert(
+        "payees",
+        ["id", "kind", "name", "phone", "notes", "created_at"],
+        [payee.id, payee.kind, payee.name, payee.phone, payee.notes, payee.createdAt],
+      ),
+    ),
+    ...(db.payrolls ?? []).map((payroll) =>
+      insert(
+        "payrolls",
+        ["id", "number", "date", "order_id", "status", "notes", "method", "paid_at", "items", "created_at"],
+        [
+          payroll.id,
+          payroll.number,
+          payroll.date,
+          payroll.orderId,
+          payroll.status,
+          payroll.notes,
+          payroll.method,
+          payroll.paidAt,
+          JSON.stringify(payroll.items),
+          payroll.createdAt,
         ],
       ),
     ),
