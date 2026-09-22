@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteOrder, deleteQuotation, removeOrderSpk, updateOrderStatus, uploadOrderSpk } from "@/app/actions";
-import { DownloadPdfButton } from "@/components/document-actions";
 import { CompactFileUpload } from "@/components/file-uploads";
 import { ConfirmSubmit, StatusButtons } from "@/components/line-items";
 import { OrderForm } from "@/components/order-form";
@@ -12,13 +11,8 @@ import {
   Card,
   EmptyState,
   PageHeader,
-  Table,
-  TableBody,
-  TableHeader,
-  TableRow,
-  Td,
-  Th,
 } from "@/components/shared";
+import { DocumentsTable, LineItemsTable } from "@/components/tables/detail-tables";
 import { invoiceDpp, invoicePpn, invoiceSubtotal, isIssued } from "@/lib/finance";
 import { filePublicUrl, needsTaxInvoice, uploadAccept } from "@/lib/file-meta";
 import { formatDate, formatNumber, formatRupiah } from "@/lib/format";
@@ -127,47 +121,16 @@ export default async function OrderDetailPage({
         <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
           <h2 className="font-heading text-lg">Item pesanan</h2>
         </div>
-        <div className="grid gap-3 p-4 md:hidden">
-          {order.items.map((item) => (
-            <div key={item.id} className="rounded-xl border border-border p-3">
-              <p className="font-medium">{item.name}</p>
-              {item.spec ? <p className="mt-1 text-xs text-muted-foreground">{item.spec}</p> : null}
-              <div className="mt-3 flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  {formatNumber(item.qty)} {item.unit} × {formatRupiah(item.unitPrice)}
-                </span>
-                <span className="font-medium">{formatRupiah(item.qty * item.unitPrice)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="hidden md:block">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <Th>Item</Th>
-                <Th>Qty</Th>
-                <Th>Harga</Th>
-                <Th>Jumlah</Th>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {order.items.map((item) => (
-                <TableRow key={item.id}>
-                  <Td>
-                    {item.name}
-                    {item.spec ? <p className="text-xs text-muted-foreground">{item.spec}</p> : null}
-                  </Td>
-                  <Td>
-                    {formatNumber(item.qty)} {item.unit}
-                  </Td>
-                  <Td>{formatRupiah(item.unitPrice)}</Td>
-                  <Td>{formatRupiah(item.qty * item.unitPrice)}</Td>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <LineItemsTable
+          data={order.items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            spec: item.spec || "",
+            qty: `${formatNumber(item.qty)} ${item.unit}`,
+            price: formatRupiah(item.unitPrice),
+            amount: formatRupiah(item.qty * item.unitPrice),
+          }))}
+        />
         {order.status !== "dibatalkan" ? (
           <details className="border-t border-border">
             <summary className="cursor-pointer list-none px-5 py-3 text-sm font-medium text-primary marker:content-none [&::-webkit-details-marker]:hidden">
@@ -201,6 +164,8 @@ export default async function OrderDetailPage({
               <CompactFileUpload
                 action={uploadOrderSpk.bind(null, order.id)}
                 accept={uploadAccept("spk")}
+                folder={`orders/${order.id}/spk`}
+                kind="spk"
                 label={order.spk ? "Ganti SPK" : "SPK"}
               />
             </div>
@@ -217,104 +182,15 @@ export default async function OrderDetailPage({
             }
           />
         ) : (
-          <>
-            <div className="grid gap-3 p-4 md:hidden">
-              {docs.map((doc) => (
-                <div key={doc.id} className="rounded-xl border border-border p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <Badge tone="neutral">{doc.kind}</Badge>
-                      <p className="mt-1 font-medium">{doc.number}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(doc.date)}</p>
-                    </div>
-                    {doc.amount != null ? (
-                      <span className="text-sm font-medium">{formatRupiah(doc.amount)}</span>
-                    ) : null}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {doc.openHref ? (
-                      <ButtonLink href={doc.openHref} variant="outline" size="sm">
-                        Buka
-                      </ButtonLink>
-                    ) : null}
-                    {doc.printHref ? (
-                      <ButtonLink href={doc.printHref} variant="outline" size="sm">
-                        Cetak
-                      </ButtonLink>
-                    ) : null}
-                    {doc.pdfHref ? <DownloadPdfButton href={doc.pdfHref} label="PDF" size="sm" /> : null}
-                    {doc.deleteAction ? (
-                      <ConfirmSubmit
-                        label="Hapus"
-                        message={doc.deleteMessage}
-                        action={doc.deleteAction}
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="hidden overflow-x-auto md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <Th>Jenis</Th>
-                    <Th>Nomor</Th>
-                    <Th>Tanggal</Th>
-                    <Th>Nilai</Th>
-                    <Th>Aksi</Th>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {docs.map((doc) => (
-                    <TableRow key={doc.id}>
-                      <Td>
-                        <Badge tone="neutral">{doc.kind}</Badge>
-                      </Td>
-                      <Td>
-                        {doc.openHref ? (
-                          <Link
-                            href={doc.openHref}
-                            className="font-medium text-primary"
-                            target={doc.openExternal ? "_blank" : undefined}
-                            rel={doc.openExternal ? "noreferrer" : undefined}
-                          >
-                            {doc.number}
-                          </Link>
-                        ) : (
-                          doc.number
-                        )}
-                      </Td>
-                      <Td>{formatDate(doc.date)}</Td>
-                      <Td>{doc.amount != null ? formatRupiah(doc.amount) : "—"}</Td>
-                      <Td>
-                        <div className="flex flex-wrap gap-2">
-                          {doc.openHref && !doc.printHref ? (
-                            <ButtonLink href={doc.openHref} variant="outline" size="sm">
-                              Buka
-                            </ButtonLink>
-                          ) : null}
-                          {doc.printHref ? (
-                            <ButtonLink href={doc.printHref} variant="outline" size="sm">
-                              Cetak
-                            </ButtonLink>
-                          ) : null}
-                          {doc.pdfHref ? <DownloadPdfButton href={doc.pdfHref} label="PDF" size="sm" /> : null}
-                          {doc.deleteAction ? (
-                            <ConfirmSubmit
-                              label="Hapus"
-                              message={doc.deleteMessage}
-                              action={doc.deleteAction}
-                            />
-                          ) : null}
-                        </div>
-                      </Td>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </>
+          <div className="py-4">
+            <DocumentsTable
+              data={docs.map((doc) => ({
+                ...doc,
+                date: formatDate(doc.date),
+                amount: doc.amount != null ? formatRupiah(doc.amount) : "—",
+              }))}
+            />
+          </div>
         )}
       </Card>
     </div>

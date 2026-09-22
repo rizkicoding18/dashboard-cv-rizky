@@ -1,5 +1,7 @@
 import { createId, nextNumber } from "@/lib/ids";
-import type { BeritaAcara, Customer, Database, Invoice } from "@/lib/types";
+import { invoiceTotal } from "@/lib/finance";
+import { todayIso } from "@/lib/format";
+import type { BeritaAcara, Customer, Database, Invoice, Payment, Receipt } from "@/lib/types";
 
 export function assignFakturNumber(db: Database, invoice: Invoice) {
   if (invoice.fakturNumber) return invoice.fakturNumber;
@@ -42,4 +44,37 @@ export function ensureInvoiceCompanions(db: Database, invoice: Invoice) {
   if (db.beritaAcaras.some((row) => row.invoiceId === invoice.id)) return;
   const customer = db.customers.find((row) => row.id === invoice.customerId);
   db.beritaAcaras.unshift(buildBeritaAcaraFromInvoice(db, invoice, customer));
+}
+
+export function receiptDescriptionFromInvoice(invoice: Invoice) {
+  const names = invoice.items.map((item) => item.name).filter(Boolean);
+  const head = `Pembayaran invoice ${invoice.number}`;
+  if (!names.length) return head;
+  if (names.length === 1) return `${head} — ${names[0]}`;
+  return `${head} — ${names[0]} dan ${names.length - 1} item lain`;
+}
+
+export function defaultReceiptFromInvoice(
+  db: Database,
+  invoice: Invoice,
+  payment?: Payment | null,
+): Omit<Receipt, "id" | "number" | "createdAt"> {
+  const latestPayment =
+    payment ||
+    db.payments
+      .filter((row) => row.invoiceId === invoice.id)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))[0] ||
+    null;
+  const amount = latestPayment?.amount || invoice.paidAmount || invoiceTotal(invoice);
+  return {
+    invoiceId: invoice.id,
+    paymentId: latestPayment?.id || null,
+    customerId: invoice.customerId,
+    date: latestPayment?.date || todayIso(),
+    amount,
+    method: latestPayment?.method || "transfer",
+    bankId: latestPayment?.bankId || invoice.bankId,
+    description: receiptDescriptionFromInvoice(invoice),
+    notes: latestPayment?.notes || "",
+  };
 }

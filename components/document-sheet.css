@@ -1,6 +1,8 @@
 .doc-sheet {
   box-sizing: border-box;
+  width: 800px;
   max-width: 800px;
+  min-width: 800px;
   margin: 0 auto;
   padding: 32px;
   background: #fff;
@@ -270,6 +272,15 @@
   margin: 0;
 }
 
+.doc-signs-right {
+  grid-template-columns: 1fr;
+  justify-items: end;
+}
+
+.doc-signs-right > div {
+  width: 220px;
+}
+
 .doc-sign-space {
   height: 80px;
 }
@@ -337,10 +348,769 @@
   white-space: pre-wrap;
 }
 
+.doc-sheet-formal {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(28, 25, 23, 0.08);
+}
+
+.doc-accent-bar {
+  height: 8px;
+  margin: -32px -32px 24px;
+  background: oklch(0.42 0.14 18);
+}
+
+.doc-masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e7e5e4;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.doc-id-card {
+  min-width: 220px;
+  padding: 14px 16px 16px;
+  background: #fafaf9;
+  border: 1px solid #e7e5e4;
+  border-left: 4px solid oklch(0.42 0.14 18);
+  text-align: right;
+}
+
+.doc-sheet-formal .doc-kicker {
+  color: oklch(0.42 0.14 18);
+}
+
+.doc-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.doc-party-card {
+  min-width: 0;
+  padding: 14px 16px;
+  background: #fafaf9;
+  border: 1px solid #e7e5e4;
+}
+
+.doc-party-card .doc-party-line,
+.doc-party-card .doc-party-address {
+  margin-top: 2px;
+  color: #57534e;
+  font-size: 13px;
+}
+
+.doc-title-block {
+  margin-top: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.doc-sheet-formal .doc-title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.doc-sheet-formal .doc-body {
+  margin-top: 16px;
+}
+
+.doc-sheet-formal .doc-table {
+  margin-top: 20px;
+  border: 1px solid #e7e5e4;
+}
+
+.doc-sheet-formal .doc-table th,
+.doc-sheet-formal .doc-table td {
+  padding: 8px 10px;
+}
+
+.doc-sheet-formal .doc-table thead th {
+  background: oklch(0.42 0.14 18);
+  color: #fff;
+  border: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.doc-sheet-formal .doc-table tbody td {
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.doc-sheet-formal .doc-table tbody tr:nth-child(even) td {
+  background: #fafaf9;
+}
+
+.doc-sheet-formal .doc-spec {
+  color: #a8a29e;
+}
+
+.doc-sheet-formal .doc-totals-wrap {
+  margin-top: 20px;
+  align-items: stretch;
+}
+
+.doc-sheet-formal .doc-bank {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #fafaf9;
+  border: 1px solid #e7e5e4;
+}
+
+.doc-sheet-formal .doc-bank p {
+  margin: 4px 0 0;
+}
+
+.doc-sheet-formal .doc-totals {
+  min-width: 16rem;
+  padding: 8px 0 0;
+  overflow: hidden;
+  background: #fafaf9;
+  border: 1px solid #e7e5e4;
+}
+
+.doc-sheet-formal .doc-totals-line {
+  padding: 5px 16px;
+}
+
+.doc-sheet-formal .doc-totals-grand {
+  margin: 8px 0 0;
+  padding: 10px 16px;
+  border: 0;
+  background: oklch(0.42 0.14 18);
+  color: #fff;
+}
+
+.doc-close {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.doc-sheet-formal .doc-signs {
+  margin-top: 40px;
+}
+
+.doc-sheet-formal .doc-sign-space {
+  width: 72%;
+  height: 56px;
+  margin: 8px auto 10px;
+  border-bottom: 1px solid #1c1917;
+}
+
+.doc-sheet-formal .doc-table thead {
+  display: table-header-group;
+}
+
+.doc-sheet-formal .doc-table tbody {
+  display: table-row-group;
+}
+
+.doc-sheet-formal .doc-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.doc-sheet-invoice,
+.doc-sheet-faktur,
+.doc-sheet-ba,
+.doc-sheet-kwitansi {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 22px 50px rgba(28, 25, 23, 0.08);
+}
+
+.doc-sheet-invoice {
+  padding: 36px 40px 36px 44px;
+  border-left: 10px solid oklch(0.42 0.14 18);
+}
+
+.doc-sheet-invoice .doc-company-name {
+  font-size: 22px;
+}
+
+.doc-sheet-invoice .doc-company-meta {
+  margin-top: 8px;
+}
+
+.doc-inv-head {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.doc-inv-mark {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.doc-inv-word {
+  margin: 0;
+  font-size: 42px;
+  font-weight: 650;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+  color: oklch(0.42 0.14 18);
+}
+
+.doc-sheet-invoice .doc-number {
+  margin-top: 10px;
+  font-size: 15px;
+}
+
+.doc-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 28px 0 0;
+  border-top: 1px solid #e7e5e4;
+  border-bottom: 1px solid #e7e5e4;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.doc-facts > div {
+  padding: 12px 16px 12px 0;
+}
+
+.doc-facts > div + div {
+  padding-left: 16px;
+  border-left: 1px solid #e7e5e4;
+}
+
+.doc-facts dt {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+
+.doc-facts dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+
+.doc-billto {
+  margin-top: 28px;
+}
+
+.doc-billto-name {
+  margin: 6px 0 4px;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.doc-sheet-invoice .doc-table {
+  margin-top: 22px;
+}
+
+.doc-sheet-invoice .doc-table th {
+  padding: 0 12px 10px 0;
+  border-top: 0;
+  border-bottom: 2px solid oklch(0.42 0.14 18);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: oklch(0.42 0.14 18);
+}
+
+.doc-sheet-invoice .doc-table td {
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid #f0eeec;
+}
+
+.doc-sheet-invoice .doc-table .col-no {
+  color: oklch(0.42 0.14 18);
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-sheet-invoice .doc-totals-wrap {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.doc-sheet-invoice .doc-terbilang {
+  padding-left: 12px;
+  border-left: 3px solid oklch(0.42 0.14 18);
+  font-size: 15px;
+}
+
+.doc-sheet-invoice .doc-totals-grand {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 2px solid oklch(0.42 0.14 18);
+  color: oklch(0.42 0.14 18);
+  font-size: 20px;
+}
+
+.doc-sheet-invoice .doc-signs,
+.doc-sheet-faktur .doc-signs,
+.doc-sheet-ba .doc-signs {
+  margin-top: 48px;
+}
+
+.doc-sheet-invoice .doc-sign-space,
+.doc-sheet-faktur .doc-sign-space,
+.doc-sheet-ba .doc-sign-space,
+.doc-sheet-kwitansi .doc-sign-space {
+  width: 68%;
+  height: 52px;
+  margin: 8px auto 8px;
+  border-bottom: 1px solid #1c1917;
+}
+
+.doc-sheet-faktur {
+  padding: 36px 40px;
+  background: #fffdfb;
+}
+
+.doc-fkt-head {
+  text-align: center;
+}
+
+.doc-fkt-head .doc-company-name {
+  margin-top: 10px;
+  font-size: 24px;
+}
+
+.doc-fkt-head .doc-company-meta {
+  max-width: none;
+  margin-top: 8px;
+}
+
+.doc-double-rule {
+  height: 5px;
+  margin: 16px 0;
+  border-top: 2px solid #1c1917;
+  border-bottom: 1px solid #1c1917;
+}
+
+.doc-fkt-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.doc-fkt-head .doc-number {
+  margin-top: 6px;
+}
+
+.doc-fkt-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin-top: 8px;
+}
+
+.doc-fkt-parties > div {
+  padding: 4px 20px 4px 0;
+}
+
+.doc-fkt-parties > div + div {
+  padding-left: 20px;
+  border-left: 1px solid #d6d3d1;
+}
+
+.doc-sheet-faktur .doc-table {
+  margin-top: 20px;
+}
+
+.doc-sheet-faktur .doc-table th {
+  padding: 8px 10px 8px 0;
+  border-top: 2px solid #1c1917;
+  border-bottom: 2px solid #1c1917;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.doc-sheet-faktur .doc-table td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px dotted #d6d3d1;
+}
+
+.doc-sheet-faktur .doc-totals {
+  min-width: 16rem;
+  padding-top: 4px;
+  border-top: 2px solid #1c1917;
+}
+
+.doc-sheet-faktur .doc-totals-grand {
+  border-top: 2px solid #1c1917;
+}
+
+.doc-sheet-ba {
+  padding: 40px 48px;
+}
+
+.doc-ba-head {
+  text-align: center;
+}
+
+.doc-ba-kicker {
+  margin: 12px 0 0;
+  font-family: var(--font-geist-mono), GeistMono, ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #78716c;
+}
+
+.doc-ornament {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 16px auto 14px;
+  max-width: 220px;
+}
+
+.doc-ornament::before,
+.doc-ornament::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #d6d3d1;
+}
+
+.doc-ornament span {
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  background: oklch(0.42 0.14 18);
+}
+
+.doc-ba-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.doc-ba-lead {
+  margin: 18px 0 0;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.doc-ba-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-top: 18px;
+}
+
+.doc-sheet-ba .doc-table {
+  margin-top: 18px;
+}
+
+.doc-sheet-ba .doc-table th {
+  padding: 8px 10px 8px 0;
+  border-top: 0;
+  border-bottom: 1px solid #1c1917;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #57534e;
+}
+
+.doc-sheet-ba .doc-table td {
+  padding: 10px 10px 10px 0;
+  border-bottom: 1px solid #f0eeec;
+}
+
+.doc-sheet-kwitansi {
+  padding: 28px 32px 32px;
+  background:
+    linear-gradient(oklch(0.42 0.14 18), oklch(0.42 0.14 18)) left top / 100% 8px no-repeat,
+    linear-gradient(#fffdfb, #fffdfb) left top / 100% 100% no-repeat;
+}
+
+.doc-kwi-frame {
+  padding: 22px 24px 24px;
+  border: 1px solid #eadfdc;
+  background:
+    linear-gradient(oklch(0.42 0.14 18 / 0.04), transparent 88px),
+    #fff;
+}
+
+.doc-kwi-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.doc-kwi-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.doc-kwi-brand .doc-company-name {
+  margin: 0;
+  font-size: 22px;
+}
+
+.doc-kwi-brand .doc-tagline {
+  margin-top: 4px;
+  color: #57534e;
+}
+
+.doc-kwi-brand .doc-muted {
+  margin-top: 6px;
+  max-width: 22rem;
+  line-height: 1.45;
+}
+
+.doc-kwi-mark {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.doc-kwi-mark .doc-kicker {
+  margin-bottom: 6px;
+}
+
+.doc-kwi-title {
+  margin: 0;
+  font-size: 38px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 0.95;
+  color: oklch(0.42 0.14 18);
+}
+
+.doc-kwi-no {
+  display: inline-block;
+  margin: 12px 0 0;
+  padding: 5px 10px;
+  border: 1px solid oklch(0.42 0.14 18 / 0.28);
+  background: oklch(0.42 0.14 18 / 0.06);
+  font-family: var(--font-geist-mono), GeistMono, ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: oklch(0.42 0.14 18);
+}
+
+.doc-kwi-rule {
+  height: 5px;
+  margin: 20px 0 4px;
+  border-top: 2px solid oklch(0.42 0.14 18);
+  border-bottom: 1px solid oklch(0.42 0.14 18);
+}
+
+.doc-kwi-from {
+  margin-top: 18px;
+}
+
+.doc-kwi-payer {
+  margin: 6px 0 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.doc-kwi-from .doc-party-line,
+.doc-kwi-from .doc-party-address {
+  margin-top: 4px;
+}
+
+.doc-kwi-rows {
+  margin: 4px 0 0;
+}
+
+.doc-kwi-rows > div {
+  display: grid;
+  grid-template-columns: 10.5rem 1fr;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid #f0eeec;
+}
+
+.doc-kwi-rows dt {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+
+.doc-kwi-rows dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.doc-kwi-rows dd .doc-spec {
+  margin-top: 4px;
+}
+
+.doc-kwi-sum {
+  margin: 20px 0 8px;
+  overflow: hidden;
+  border: 1px solid oklch(0.42 0.14 18 / 0.22);
+  background: #fff;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.doc-kwi-amount {
+  padding: 16px 20px 14px;
+  background: oklch(0.42 0.14 18 / 0.07);
+}
+
+.doc-kwi-sum .doc-label {
+  color: oklch(0.42 0.14 18);
+}
+
+.doc-kwi-figure {
+  margin: 6px 0 0;
+  font-size: 34px;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  color: oklch(0.42 0.14 18);
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-kwi-terbilang {
+  padding: 14px 20px 16px;
+  border-top: 1px dashed oklch(0.42 0.14 18 / 0.35);
+}
+
+.doc-kwi-words {
+  margin: 6px 0 0;
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.45;
+  color: #1c1917;
+}
+
+.doc-kwi-sign {
+  width: 13.5rem;
+  margin: 36px 0 0 auto;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.doc-sheet-invoice .doc-table thead,
+.doc-sheet-faktur .doc-table thead,
+.doc-sheet-ba .doc-table thead,
+.doc-sheet-formal .doc-table thead,
+.doc-sheet-quotation .doc-table thead {
+  display: table-header-group;
+}
+
+.doc-sheet-invoice .doc-table tr,
+.doc-sheet-faktur .doc-table tr,
+.doc-sheet-ba .doc-table tr,
+.doc-sheet-formal .doc-table tr,
+.doc-sheet-quotation .doc-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.doc-sph-cover {
+  break-after: page;
+  page-break-after: always;
+}
+
+.doc-attach-head {
+  margin-bottom: 8px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid oklch(0.42 0.14 18);
+}
+
+.doc-attach-title {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.doc-sph-attach .doc-number {
+  margin-top: 6px;
+}
+
+@media screen {
+  .doc-sph-attach {
+    margin-top: 40px;
+    padding-top: 40px;
+    border-top: 1px dashed #d6d3d1;
+  }
+}
+
 @media print {
   .doc-sheet {
+    width: auto;
+    min-width: 0;
     max-width: none;
     padding: 0;
     box-shadow: none;
+  }
+
+  .doc-sheet-formal,
+  .doc-sheet-invoice,
+  .doc-sheet-faktur,
+  .doc-sheet-ba,
+  .doc-sheet-kwitansi {
+    overflow: visible;
+    box-shadow: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .doc-sheet-invoice {
+    padding: 0 0 0 8px;
+  }
+
+  .doc-sheet-faktur,
+  .doc-sheet-ba,
+  .doc-sheet-kwitansi {
+    padding: 0;
+  }
+
+  .doc-sheet-kwitansi {
+    background:
+      linear-gradient(oklch(0.42 0.14 18), oklch(0.42 0.14 18)) left top / 100% 8px no-repeat,
+      #fff;
+  }
+
+  .doc-accent-bar {
+    margin: 0 0 16px;
+  }
+
+  .doc-sph-cover {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .doc-sph-attach {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
 }

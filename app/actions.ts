@@ -13,7 +13,7 @@ import { createId, nextNumber } from "@/lib/ids";
 import { createSeed } from "@/lib/seed";
 import { readDb, replaceDb, updateDb } from "@/lib/store";
 import { setDefaultBank, syncProfileBank } from "@/lib/banks";
-import { removeUpload, saveUpload } from "@/lib/files";
+import { removeUpload, saveOneFromForm, saveUploadsFromForm } from "@/lib/files";
 import { todayIso, parseGroupedNumber } from "@/lib/format";
 import type {
   BankAccount,
@@ -42,7 +42,7 @@ import type {
   SuratJalanItem,
   WorkType,
 } from "@/lib/types";
-import { buildSphFromOrder, QUOTATION_NUMBER_PREFIX } from "@/lib/quotations";
+import { billedQtyByOrderItem, buildSphFromOrder, QUOTATION_NUMBER_PREFIX } from "@/lib/quotations";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -60,6 +60,7 @@ function toLines(drafts: DraftLine[]): LineItem[] {
       unit: row.unit || "pcs",
       unitPrice: Number(row.unitPrice) || 0,
       costPrice: Number(row.costPrice) || 0,
+      sourceItemId: row.sourceItemId || undefined,
     }));
 }
 
@@ -391,38 +392,59 @@ export async function createInvoice(input: {
   items: DraftLine[];
   issue: boolean;
 }) {
+  if (!input.orderId) return { error: "Pilih order." };
   if (!input.customerId) return { error: "Pilih perusahaan." };
   const items = toLines(input.items);
-  if (!items.length) return { error: "Tambahkan minimal satu item." };
-  const invoice = await updateDb((db) => {
-    const row: Invoice = {
-      id: createId("inv"),
-      number: nextNumber(
-        "INV",
-        db.invoices.map((item) => item.number),
-      ),
-      fakturNumber: nextNumber(
-        "FKT",
-        db.invoices.map((item) => item.fakturNumber).filter(Boolean),
-      ),
-      orderId: input.orderId,
-      customerId: input.customerId,
-      date: input.date || todayIso(),
-      dueDate: input.dueDate || "",
-      status: "draft",
-      items,
-      discount: Number(input.discount) || 0,
-      includePpn: Boolean(input.includePpn),
-      ppnRate: Number(input.ppnRate) || 0,
-      notes: input.notes.trim(),
-      bankId: input.bankId || db.banks.find((bank) => bank.isDefault)?.id || db.banks[0]?.id || null,
-      paidAmount: 0,
-      issuedAt: null,
-      createdAt: new Date().toISOString(),
-    };
-    db.invoices.unshift(row);
-    return row;
-  });
+  if (!items.length) return { error: "Pilih minimal satu item yang akan ditagih." };
+  let invoice: Invoice;
+  try {
+    invoice = await updateDb((db) => {
+      const order = db.orders.find((row) => row.id === input.orderId);
+      if (!order) throw new Error("Order tidak ditemukan.");
+      if (order.status === "dibatalkan") throw new Error("Order dibatalkan tidak bisa ditagih.");
+      const billed = billedQtyByOrderItem(
+        order,
+        db.invoices.filter((row) => row.orderId === order.id),
+      );
+      for (const item of items) {
+        const source = item.sourceItemId ? order.items.find((row) => row.id === item.sourceItemId) : null;
+        if (!source) continue;
+        const remaining = Math.max(0, source.qty - (billed[source.id] || 0));
+        if (item.qty > remaining) {
+          throw new Error(`${source.name} sisa ${remaining} ${source.unit}.`);
+        }
+      }
+      const row: Invoice = {
+        id: createId("inv"),
+        number: nextNumber(
+          "INV",
+          db.invoices.map((item) => item.number),
+        ),
+        fakturNumber: nextNumber(
+          "FKT",
+          db.invoices.map((item) => item.fakturNumber).filter(Boolean),
+        ),
+        orderId: input.orderId,
+        customerId: order.customerId,
+        date: input.date || todayIso(),
+        dueDate: input.dueDate || "",
+        status: "draft",
+        items,
+        discount: Number(input.discount) || 0,
+        includePpn: Boolean(input.includePpn),
+        ppnRate: Number(input.ppnRate) || 0,
+        notes: input.notes.trim(),
+        bankId: input.bankId || db.banks.find((bank) => bank.isDefault)?.id || db.banks[0]?.id || null,
+        paidAmount: 0,
+        issuedAt: null,
+        createdAt: new Date().toISOString(),
+      };
+      db.invoices.unshift(row);
+      return row;
+    });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Gagal membuat invoice." };
+  }
   if (input.issue) {
     await issueInvoice(invoice.id);
     return;
@@ -481,14 +503,26 @@ export async function issueInvoice(id: string) {
 }
 
 export async function deleteInvoice(id: string) {
+  const proofs: StoredFile[] = [];
   await updateDb((db) => {
     const row = db.invoices.find((item) => item.id === id);
     if (!row) return;
-    if (isIssued(row.status)) {
-      throw new Error("Faktur yang sudah terbit tidak bisa dihapus.");
+    for (const payment of db.payments.filter((item) => item.invoiceId === id)) {
+      if (payment.proof) proofs.push(payment.proof);
     }
+    for (const move of db.stockMoves.filter((item) => item.refType === "invoice" && item.refId === id)) {
+      if (move.type !== "keluar") continue;
+      const product = db.products.find((item) => item.id === move.productId);
+      if (product?.trackStock) product.stock += move.qty;
+    }
+    db.stockMoves = db.stockMoves.filter((item) => !(item.refType === "invoice" && item.refId === id));
+    db.payments = db.payments.filter((item) => item.invoiceId !== id);
+    db.receipts = (db.receipts ?? []).filter((item) => item.invoiceId !== id);
+    db.suratJalans = db.suratJalans.filter((item) => item.invoiceId !== id);
+    db.beritaAcaras = db.beritaAcaras.filter((item) => item.invoiceId !== id);
     db.invoices = db.invoices.filter((item) => item.id !== id);
   });
+  await Promise.all(proofs.map((file) => removeUpload(file)));
   refresh();
   redirect("/dokumen");
 }
@@ -502,7 +536,6 @@ export async function addPayment(invoiceId: string, formData: FormData) {
   if (!bankId) return { error: "Pilih rekening bank penerima." };
   const date = String(formData.get("date") || todayIso());
   const notes = String(formData.get("notes") || "").trim();
-  const file = formFiles(formData)[0];
 
   const snapshot = await readDb();
   const current = snapshot.invoices.find((row) => row.id === invoiceId);
@@ -512,12 +545,9 @@ export async function addPayment(invoiceId: string, formData: FormData) {
   const outstanding = invoiceTotal(current) - current.paidAmount;
   if (amount > outstanding) return { error: "Nominal melebihi sisa tagihan." };
 
-  let proof: StoredFile | null = null;
-  if (file) {
-    const saved = await saveUpload(file, `payments/${invoiceId}`, "proof");
-    if ("error" in saved) return saved;
-    proof = saved;
-  }
+  const proofs = await saveUploadsFromForm(formData, `payments/${invoiceId}`, "proof", "", true);
+  if ("error" in proofs) return proofs;
+  const proof = proofs[0] ?? null;
 
   try {
     await updateDb((db) => {
@@ -583,11 +613,14 @@ export async function createBeritaAcara(input: {
 }
 
 export async function deleteBeritaAcara(id: string) {
-  await updateDb((db) => {
-    db.beritaAcaras = db.beritaAcaras.filter((row) => row.id !== id);
+  const invoiceId = await updateDb((db) => {
+    const row = db.beritaAcaras.find((item) => item.id === id);
+    const parentId = row?.invoiceId || null;
+    db.beritaAcaras = db.beritaAcaras.filter((item) => item.id !== id);
+    return parentId;
   });
   refresh();
-  redirect("/dokumen");
+  redirect(invoiceId ? `/dokumen/invoice/${invoiceId}` : "/dokumen");
 }
 
 export async function createSuratJalan(input: {
@@ -637,6 +670,78 @@ export async function deleteSuratJalan(id: string) {
     const row = db.suratJalans.find((item) => item.id === id);
     const parentId = row?.invoiceId || null;
     db.suratJalans = db.suratJalans.filter((item) => item.id !== id);
+    return parentId;
+  });
+  refresh();
+  redirect(invoiceId ? `/dokumen/invoice/${invoiceId}` : "/dokumen");
+}
+
+export async function createReceipt(input: {
+  invoiceId: string;
+  paymentId: string | null;
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+  bankId: string | null;
+  description: string;
+  notes: string;
+}) {
+  if (!input.invoiceId) return { error: "Kwitansi dibuat dari invoice." };
+  const amount = parseGroupedNumber(String(input.amount ?? "")) || Number(input.amount) || 0;
+  if (amount <= 0) return { error: "Nominal kwitansi harus lebih dari 0." };
+  if (!["tunai", "transfer", "giro"].includes(input.method)) {
+    return { error: "Metode pembayaran tidak valid." };
+  }
+  if (input.method !== "tunai" && !input.bankId) {
+    return { error: "Pilih rekening bank penerima." };
+  }
+
+  const receipt = await updateDb((db) => {
+    const invoice = db.invoices.find((row) => row.id === input.invoiceId);
+    if (!invoice) throw new Error("Invoice tidak ditemukan");
+    if (!isIssued(invoice.status)) throw new Error("Invoice belum terbit.");
+    const total = invoiceTotal(invoice);
+    if (amount > total) return { error: "Nominal melebihi nilai invoice." };
+    if (input.paymentId) {
+      const payment = db.payments.find((row) => row.id === input.paymentId);
+      if (!payment || payment.invoiceId !== invoice.id) {
+        return { error: "Pembayaran tidak ditemukan pada invoice ini." };
+      }
+    }
+    if (input.bankId && !db.banks.some((bank) => bank.id === input.bankId)) {
+      return { error: "Rekening bank tidak ditemukan." };
+    }
+    if (!Array.isArray(db.receipts)) db.receipts = [];
+    const row = {
+      id: createId("kwi"),
+      number: nextNumber(
+        "KWI",
+        db.receipts.map((item) => item.number),
+      ),
+      invoiceId: invoice.id,
+      paymentId: input.paymentId,
+      customerId: invoice.customerId,
+      date: input.date || todayIso(),
+      amount,
+      method: input.method,
+      bankId: input.bankId || null,
+      description: input.description.trim() || `Pembayaran invoice ${invoice.number}`,
+      notes: input.notes.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    db.receipts.unshift(row);
+    return row;
+  });
+  if ("error" in receipt) return receipt;
+  refresh();
+  redirect(`/dokumen/invoice/${receipt.invoiceId}`);
+}
+
+export async function deleteReceipt(id: string) {
+  const invoiceId = await updateDb((db) => {
+    const row = db.receipts.find((item) => item.id === id);
+    const parentId = row?.invoiceId || null;
+    db.receipts = db.receipts.filter((item) => item.id !== id);
     return parentId;
   });
   refresh();
@@ -1093,20 +1198,8 @@ export async function deletePayroll(id: string) {
   redirect("/gaji");
 }
 
-function formFiles(formData: FormData) {
-  const files: File[] = [];
-  for (const name of ["file", "files"]) {
-    for (const value of formData.getAll(name)) {
-      if (value instanceof File && value.size > 0) files.push(value);
-    }
-  }
-  return files;
-}
-
 export async function uploadProductPhoto(productId: string, formData: FormData) {
-  const file = formFiles(formData)[0];
-  if (!file) return { error: "Pilih foto barang." };
-  const saved = await saveUpload(file, `products/${productId}/photo`, "photo");
+  const saved = await saveOneFromForm(formData, `products/${productId}/photo`, "photo", "Pilih foto barang.");
   if ("error" in saved) return saved;
   let previous: StoredFile | null = null;
   try {
@@ -1137,17 +1230,8 @@ export async function removeProductPhoto(productId: string) {
 }
 
 export async function uploadProductPrintFiles(productId: string, formData: FormData) {
-  const incoming = formFiles(formData);
-  if (!incoming.length) return { error: "Pilih file cetak." };
-  const saved: StoredFile[] = [];
-  for (const file of incoming) {
-    const result = await saveUpload(file, `products/${productId}/print`, "print");
-    if ("error" in result) {
-      await Promise.all(saved.map((item) => removeUpload(item)));
-      return result;
-    }
-    saved.push(result);
-  }
+  const saved = await saveUploadsFromForm(formData, `products/${productId}/print`, "print", "Pilih file cetak.");
+  if ("error" in saved) return saved;
   try {
     await updateDb((db) => {
       const product = db.products.find((row) => row.id === productId);
@@ -1174,9 +1258,7 @@ export async function removeProductPrintFile(productId: string, fileId: string) 
 }
 
 export async function uploadOrderTaxInvoice(orderId: string, formData: FormData) {
-  const file = formFiles(formData)[0];
-  if (!file) return { error: "Pilih file faktur pajak." };
-  const saved = await saveUpload(file, `orders/${orderId}/tax`, "tax");
+  const saved = await saveOneFromForm(formData, `orders/${orderId}/tax`, "tax", "Pilih file faktur pajak.");
   if ("error" in saved) return saved;
   let previous: StoredFile | null = null;
   try {
@@ -1207,9 +1289,7 @@ export async function removeOrderTaxInvoice(orderId: string) {
 }
 
 export async function uploadOrderSpk(orderId: string, formData: FormData) {
-  const file = formFiles(formData)[0];
-  if (!file) return { error: "Pilih file SPK." };
-  const saved = await saveUpload(file, `orders/${orderId}/spk`, "spk");
+  const saved = await saveOneFromForm(formData, `orders/${orderId}/spk`, "spk", "Pilih file SPK.");
   if ("error" in saved) return saved;
   let previous: StoredFile | null = null;
   try {

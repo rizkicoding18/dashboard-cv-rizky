@@ -98,6 +98,7 @@ export interface LineItem {
   unit: string;
   unitPrice: number;
   costPrice: number;
+  sourceItemId?: string;
 }
 
 export interface Order {
@@ -178,6 +179,21 @@ export interface SuratJalan {
   vehicle: string;
   driver: string;
   items: SuratJalanItem[];
+  notes: string;
+  createdAt: string;
+}
+
+export interface Receipt {
+  id: string;
+  number: string;
+  invoiceId: string;
+  paymentId: string | null;
+  customerId: string;
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+  bankId: string | null;
+  description: string;
   notes: string;
   createdAt: string;
 }
@@ -305,6 +321,7 @@ export interface Database {
   invoices: Invoice[];
   beritaAcaras: BeritaAcara[];
   suratJalans: SuratJalan[];
+  receipts: Receipt[];
   quotations: Quotation[];
   purchases: Purchase[];
   expenses: Expense[];
@@ -323,6 +340,7 @@ export type DraftLine = {
   unit: string;
   unitPrice: number;
   costPrice: number;
+  sourceItemId?: string;
 };
 
 export type DraftBaLine = {

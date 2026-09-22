@@ -452,6 +452,7 @@ export function createSeed(): Database {
         createdAt: "2026-09-09T07:30:00.000Z",
       },
     ],
+    receipts: [],
     quotations: [],
     purchases: [
       {

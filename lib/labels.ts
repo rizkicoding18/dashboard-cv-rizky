@@ -2,6 +2,7 @@ import type {
   ExpenseCategory,
   InvoiceStatus,
   OrderStatus,
+  PaymentMethod,
   ProductCategory,
 } from "@/lib/types";
 
@@ -25,6 +26,12 @@ export const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
   sebagian: "Sebagian",
   lunas: "Lunas",
   batal: "Batal",
+};
+
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  tunai: "Tunai",
+  transfer: "Transfer",
+  giro: "Giro",
 };
 
 export const EXPENSE_LABEL: Record<ExpenseCategory, string> = {

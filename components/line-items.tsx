@@ -23,12 +23,14 @@ export function LineItemsEditor({
   customerId,
   items,
   onChange,
+  priceHint,
 }: {
   products: Product[];
   prices: CustomerPrice[];
   customerId: string;
   items: DraftLine[];
   onChange: (items: DraftLine[]) => void;
+  priceHint?: string | null;
 }) {
   const productMap = useMemo(
     () => Object.fromEntries(products.map((product) => [product.id, product])),
@@ -88,9 +90,13 @@ export function LineItemsEditor({
                 placeholder="Nama item atau pekerjaan"
                 onChange={(event) => update(item.key, { name: event.target.value })}
               />
-              {source ? (
+              {priceHint || source ? (
                 <p className="text-[11px] text-muted-foreground">
-                  {source === "khusus" ? "Harga khusus perusahaan ini" : "Harga umum katalog"}
+                  {priceHint
+                    ? priceHint
+                    : source === "khusus"
+                      ? "Harga khusus perusahaan ini"
+                      : "Harga umum katalog"}
                 </p>
               ) : null}
             </div>

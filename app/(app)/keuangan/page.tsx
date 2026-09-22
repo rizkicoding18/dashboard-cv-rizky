@@ -1,4 +1,3 @@
-import { ConfirmSubmit } from "@/components/line-items";
 import { ExpenseForm, PurchaseForm } from "@/components/money-forms";
 import { ReportExportMenu } from "@/components/document-actions";
 import {
@@ -6,13 +5,8 @@ import {
   Card,
   PageHeader,
   Select,
-  Table,
-  TableBody,
-  TableHeader,
-  TableRow,
-  Td,
-  Th,
 } from "@/components/shared";
+import { ExpensesTable, PurchasesTable } from "@/components/tables/detail-tables";
 import { computeFinance, purchaseTotal } from "@/lib/finance";
 import { currentMonthKey, formatDate, formatMonth, formatRupiah } from "@/lib/format";
 import { EXPENSE_LABEL } from "@/lib/labels";
@@ -175,61 +169,18 @@ export default async function KeuanganPage({
         {db.expenses.length === 0 ? (
           <p className="px-5 py-8 text-sm text-muted-foreground">Belum ada beban operasional.</p>
         ) : (
-          <>
-            <div className="grid gap-3 p-4 md:hidden">
-              {db.expenses.map((expense) => (
-                <div key={expense.id} className="rounded-xl border p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{EXPENSE_LABEL[expense.category]}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{expense.description}</p>
-                    </div>
-                    <span className="text-sm font-medium">{formatRupiah(expense.amount)}</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">{formatDate(expense.date)}</span>
-                    <ConfirmSubmit
-                      label="Hapus"
-                      message="Hapus beban ini?"
-                      variant="outline"
-                      action={deleteExpense.bind(null, expense.id)}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <Th>Tanggal</Th>
-                    <Th>Kategori</Th>
-                    <Th>Uraian</Th>
-                    <Th>Nominal</Th>
-                    <Th></Th>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {db.expenses.map((expense) => (
-                    <TableRow key={expense.id}>
-                      <Td>{formatDate(expense.date)}</Td>
-                      <Td>{EXPENSE_LABEL[expense.category]}</Td>
-                      <Td>{expense.description}</Td>
-                      <Td>{formatRupiah(expense.amount)}</Td>
-                      <Td className="text-right">
-                        <ConfirmSubmit
-                          label="Hapus"
-                          message="Hapus beban ini?"
-                          variant="outline"
-                          action={deleteExpense.bind(null, expense.id)}
-                        />
-                      </Td>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </>
+          <div className="py-4">
+            <ExpensesTable
+              data={db.expenses.map((expense) => ({
+                id: expense.id,
+                date: formatDate(expense.date),
+                category: EXPENSE_LABEL[expense.category],
+                description: expense.description,
+                amount: formatRupiah(expense.amount),
+                deleteAction: deleteExpense.bind(null, expense.id),
+              }))}
+            />
+          </div>
         )}
       </Card>
       <Card>
@@ -239,49 +190,18 @@ export default async function KeuanganPage({
         {db.purchases.length === 0 ? (
           <p className="px-5 py-8 text-sm text-muted-foreground">Belum ada pembelian.</p>
         ) : (
-          <>
-            <div className="grid gap-3 p-4 md:hidden">
-              {db.purchases.map((purchase) => (
-                <div key={purchase.id} className="rounded-xl border p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{purchase.supplier}</p>
-                      <p className="text-xs text-muted-foreground">{purchase.number}</p>
-                    </div>
-                    <span className="text-sm font-medium">{formatRupiah(purchaseTotal(purchase.items))}</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
-                    <span>{formatDate(purchase.date)}</span>
-                    <span>{purchase.paid ? "Lunas" : "Belum dibayar"}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <Th>Nomor</Th>
-                    <Th>Supplier</Th>
-                    <Th>Tanggal</Th>
-                    <Th>Total</Th>
-                    <Th>Status</Th>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {db.purchases.map((purchase) => (
-                    <TableRow key={purchase.id}>
-                      <Td>{purchase.number}</Td>
-                      <Td>{purchase.supplier}</Td>
-                      <Td>{formatDate(purchase.date)}</Td>
-                      <Td>{formatRupiah(purchaseTotal(purchase.items))}</Td>
-                      <Td>{purchase.paid ? "Lunas" : "Belum dibayar"}</Td>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </>
+          <div className="py-4">
+            <PurchasesTable
+              data={db.purchases.map((purchase) => ({
+                id: purchase.id,
+                number: purchase.number,
+                supplier: purchase.supplier,
+                date: formatDate(purchase.date),
+                total: formatRupiah(purchaseTotal(purchase.items)),
+                status: purchase.paid ? "Lunas" : "Belum dibayar",
+              }))}
+            />
+          </div>
         )}
       </Card>
     </div>

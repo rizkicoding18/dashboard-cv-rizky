@@ -1,17 +1,10 @@
-import Link from "next/link";
 import {
   ButtonLink,
   Card,
   EmptyState,
   PageHeader,
-  Table,
-  TableBody,
-  TableHeader,
-  TableRow,
-  Td,
-  Th,
 } from "@/components/shared";
-import { PayrollBadge } from "@/components/status";
+import { PayrollsTable } from "@/components/tables/list-tables";
 import { computeFinance } from "@/lib/finance";
 import { currentMonthKey, formatDate, formatRupiah } from "@/lib/format";
 import { payrollKindTotal, payrollTotal } from "@/lib/payroll";
@@ -21,7 +14,16 @@ export default async function GajiPage() {
   const db = await readDb();
   const month = currentMonthKey();
   const finance = computeFinance(db, month);
-  const rows = db.payrolls;
+  const data = db.payrolls.map((row) => ({
+    id: row.id,
+    href: `/gaji/${row.id}`,
+    number: row.number,
+    date: formatDate(row.date),
+    wage: formatRupiah(payrollKindTotal(row, "pekerja")),
+    vendor: formatRupiah(payrollKindTotal(row, "vendor")),
+    total: formatRupiah(payrollTotal(row)),
+    status: row.status,
+  }));
 
   return (
     <div className="grid gap-6">
@@ -50,11 +52,11 @@ export default async function GajiPage() {
         <Card className="p-5">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Belum dibayar</p>
           <p className="mt-2 font-heading text-2xl">
-            {formatRupiah(rows.filter((row) => row.status === "terbit").reduce((sum, row) => sum + payrollTotal(row), 0))}
+            {formatRupiah(db.payrolls.filter((row) => row.status === "terbit").reduce((sum, row) => sum + payrollTotal(row), 0))}
           </p>
         </Card>
       </div>
-      {rows.length === 0 ? (
+      {data.length === 0 ? (
         <Card>
           <EmptyState
             title="Belum ada rincian gaji"
@@ -63,54 +65,7 @@ export default async function GajiPage() {
           />
         </Card>
       ) : (
-        <Card className="overflow-hidden">
-          <div className="grid gap-3 p-4 md:hidden">
-            {rows.map((row) => (
-              <Link key={row.id} href={`/gaji/${row.id}`} className="rounded-xl border border-border p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium">{row.number}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(row.date)}</p>
-                  </div>
-                  <PayrollBadge status={row.status} />
-                </div>
-                <p className="mt-2 text-sm font-medium">{formatRupiah(payrollTotal(row))}</p>
-              </Link>
-            ))}
-          </div>
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <Th>Nomor</Th>
-                  <Th>Tanggal</Th>
-                  <Th>Upah</Th>
-                  <Th>Nota luar</Th>
-                  <Th>Total</Th>
-                  <Th>Status</Th>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <Td>
-                      <Link href={`/gaji/${row.id}`} className="font-medium text-primary">
-                        {row.number}
-                      </Link>
-                    </Td>
-                    <Td>{formatDate(row.date)}</Td>
-                    <Td>{formatRupiah(payrollKindTotal(row, "pekerja"))}</Td>
-                    <Td>{formatRupiah(payrollKindTotal(row, "vendor"))}</Td>
-                    <Td>{formatRupiah(payrollTotal(row))}</Td>
-                    <Td>
-                      <PayrollBadge status={row.status} />
-                    </Td>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+        <PayrollsTable data={data} />
       )}
     </div>
   );

@@ -16,6 +16,7 @@ import type {
   Product,
   Purchase,
   Quotation,
+  Receipt,
   StockMove,
   SuratJalan,
 } from "@/lib/types";
@@ -154,6 +155,21 @@ CREATE TABLE IF NOT EXISTS surat_jalans (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS receipts (
+  id TEXT PRIMARY KEY,
+  number TEXT NOT NULL,
+  invoice_id TEXT NOT NULL,
+  payment_id TEXT,
+  customer_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  method TEXT NOT NULL DEFAULT 'transfer',
+  bank_id TEXT,
+  description TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS quotations (
   id TEXT PRIMARY KEY,
   number TEXT NOT NULL,
@@ -239,6 +255,15 @@ CREATE TABLE IF NOT EXISTS payrolls (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS stored_files (
+  path TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL DEFAULT 'application/octet-stream',
+  size INTEGER NOT NULL DEFAULT 0,
+  bytes BLOB NOT NULL,
+  uploaded_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id);
 CREATE INDEX IF NOT EXISTS idx_surat_jalans_invoice ON surat_jalans(invoice_id);
 CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
@@ -286,6 +311,62 @@ async function getClient() {
     })();
   }
   return clientPromise;
+}
+
+function toBytes(value: unknown): Uint8Array | null {
+  if (value == null) return null;
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (Buffer.isBuffer(value)) return new Uint8Array(value);
+  if (typeof value === "string") {
+    try {
+      return new Uint8Array(Buffer.from(value, "base64"));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export async function putStoredFile(rel: string, bytes: Uint8Array, mime: string, name: string) {
+  const client = await getClient();
+  await client.execute({
+    sql: `INSERT INTO stored_files (path, name, mime, size, bytes, uploaded_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(path) DO UPDATE SET
+            name = excluded.name,
+            mime = excluded.mime,
+            size = excluded.size,
+            bytes = excluded.bytes,
+            uploaded_at = excluded.uploaded_at`,
+    args: [rel, name, mime || "application/octet-stream", bytes.byteLength, bytes, new Date().toISOString()],
+  });
+}
+
+export async function getStoredFile(rel: string) {
+  const client = await getClient();
+  const rs = await client.execute({
+    sql: "SELECT name, mime, size, bytes FROM stored_files WHERE path = ?",
+    args: [rel],
+  });
+  const row = rs.rows[0];
+  if (!row) return null;
+  const bytes = toBytes(row.bytes);
+  if (!bytes) return null;
+  return {
+    name: str(row.name),
+    mime: str(row.mime, "application/octet-stream"),
+    size: num(row.size, bytes.byteLength),
+    bytes,
+  };
+}
+
+export async function deleteStoredFile(rel: string) {
+  const client = await getClient();
+  await client.execute({
+    sql: "DELETE FROM stored_files WHERE path = ?",
+    args: [rel],
+  });
 }
 
 function str(value: unknown, fallback = "") {
@@ -342,6 +423,7 @@ export async function loadSqlDatabase(): Promise<Database | null> {
     invoices,
     beritaAcaras,
     suratJalans,
+    receipts,
     quotations,
     purchases,
     expenses,
@@ -358,6 +440,7 @@ export async function loadSqlDatabase(): Promise<Database | null> {
     client.execute("SELECT * FROM invoices"),
     client.execute("SELECT * FROM berita_acaras"),
     client.execute("SELECT * FROM surat_jalans"),
+    client.execute("SELECT * FROM receipts"),
     client.execute("SELECT * FROM quotations"),
     client.execute("SELECT * FROM purchases"),
     client.execute("SELECT * FROM expenses"),
@@ -487,6 +570,20 @@ export async function loadSqlDatabase(): Promise<Database | null> {
       notes: str(row.notes),
       createdAt: str(row.created_at),
     })) as SuratJalan[],
+    receipts: receipts.rows.map((row) => ({
+      id: str(row.id),
+      number: str(row.number),
+      invoiceId: str(row.invoice_id),
+      paymentId: row.payment_id == null || row.payment_id === "" ? null : str(row.payment_id),
+      customerId: str(row.customer_id),
+      date: str(row.date),
+      amount: num(row.amount),
+      method: str(row.method) as Receipt["method"],
+      bankId: row.bank_id == null || row.bank_id === "" ? null : str(row.bank_id),
+      description: str(row.description),
+      notes: str(row.notes),
+      createdAt: str(row.created_at),
+    })),
     quotations: quotations.rows.map((row) => ({
       id: str(row.id),
       number: str(row.number),
@@ -578,6 +675,7 @@ export async function saveSqlDatabase(db: Database) {
     { sql: "DELETE FROM expenses" },
     { sql: "DELETE FROM purchases" },
     { sql: "DELETE FROM quotations" },
+    { sql: "DELETE FROM receipts" },
     { sql: "DELETE FROM surat_jalans" },
     { sql: "DELETE FROM berita_acaras" },
     { sql: "DELETE FROM invoices" },
@@ -819,6 +917,39 @@ export async function saveSqlDatabase(db: Database) {
           JSON.stringify(sj.items),
           sj.notes,
           sj.createdAt,
+        ],
+      ),
+    ),
+    ...(db.receipts ?? []).map((receipt) =>
+      insert(
+        "receipts",
+        [
+          "id",
+          "number",
+          "invoice_id",
+          "payment_id",
+          "customer_id",
+          "date",
+          "amount",
+          "method",
+          "bank_id",
+          "description",
+          "notes",
+          "created_at",
+        ],
+        [
+          receipt.id,
+          receipt.number,
+          receipt.invoiceId,
+          receipt.paymentId,
+          receipt.customerId,
+          receipt.date,
+          receipt.amount,
+          receipt.method,
+          receipt.bankId,
+          receipt.description,
+          receipt.notes,
+          receipt.createdAt,
         ],
       ),
     ),

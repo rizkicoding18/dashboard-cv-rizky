@@ -112,7 +112,15 @@
 @media print {
   @page {
     size: A4;
-    margin: 12mm;
+    margin: 12mm 12mm 16mm 12mm;
+  }
+
+  @page {
+    @bottom-center {
+      content: "Halaman " counter(page) " dari " counter(pages);
+      font-size: 9px;
+      color: #78716c;
+    }
   }
 
   html,
@@ -135,10 +143,27 @@
     top: 0;
     width: 100%;
     max-width: none;
+    min-width: 0;
     margin: 0;
     padding: 0;
     background: #fff;
     box-shadow: none;
+  }
+
+  .doc-sheet-invoice {
+    padding: 0 0 0 8px;
+  }
+
+  .doc-sheet-quotation {
+    position: relative;
+    left: auto;
+    top: auto;
+  }
+
+  .doc-sheet-kwitansi {
+    background:
+      linear-gradient(oklch(0.42 0.14 18), oklch(0.42 0.14 18)) left top / 100% 8px no-repeat,
+      #fff;
   }
 
   .no-print,

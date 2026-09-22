@@ -3,17 +3,8 @@ import { deletePayroll } from "@/app/actions";
 import { DownloadPdfButton } from "@/components/document-actions";
 import { ConfirmSubmit } from "@/components/line-items";
 import { PayrollForm, PayrollPayForm } from "@/components/payroll-form";
-import {
-  ButtonLink,
-  Card,
-  PageHeader,
-  Table,
-  TableBody,
-  TableHeader,
-  TableRow,
-  Td,
-  Th,
-} from "@/components/shared";
+import { ButtonLink, Card, PageHeader } from "@/components/shared";
+import { PayrollItemsTable } from "@/components/tables/detail-tables";
 import { PayrollBadge } from "@/components/status";
 import { formatDate, formatNumber, formatRupiah } from "@/lib/format";
 import { PAYEE_KIND_LABEL, WORK_TYPE_LABEL, payrollItemAmount, payrollKindTotal, payrollTotal } from "@/lib/payroll";
@@ -66,51 +57,18 @@ export default async function GajiDetailPage({
         <div className="border-b border-border px-5 py-4">
           <h2 className="font-heading text-lg">Rincian</h2>
         </div>
-        <div className="hidden md:block">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <Th>Penerima</Th>
-                <Th>Jenis</Th>
-                <Th>Pekerjaan</Th>
-                <Th>Qty</Th>
-                <Th>Tarif</Th>
-                <Th>Jumlah</Th>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payroll.items.map((item) => (
-                <TableRow key={item.id}>
-                  <Td>
-                    {item.payeeName}
-                    {item.description ? <p className="text-xs text-muted-foreground">{item.description}</p> : null}
-                  </Td>
-                  <Td>{PAYEE_KIND_LABEL[item.kind]}</Td>
-                  <Td>{WORK_TYPE_LABEL[item.workType]}</Td>
-                  <Td>
-                    {formatNumber(item.qty)} {item.unit}
-                  </Td>
-                  <Td>{formatRupiah(item.rate)}</Td>
-                  <Td>{formatRupiah(payrollItemAmount(item))}</Td>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="grid gap-3 p-4 md:hidden">
-          {payroll.items.map((item) => (
-            <div key={item.id} className="rounded-xl border border-border p-3">
-              <p className="font-medium">{item.payeeName}</p>
-              <p className="text-xs text-muted-foreground">
-                {PAYEE_KIND_LABEL[item.kind]} · {WORK_TYPE_LABEL[item.workType]}
-              </p>
-              <p className="mt-2 text-sm">
-                {formatNumber(item.qty)} {item.unit} × {formatRupiah(item.rate)}
-              </p>
-              <p className="mt-1 font-medium">{formatRupiah(payrollItemAmount(item))}</p>
-            </div>
-          ))}
-        </div>
+        <PayrollItemsTable
+          data={payroll.items.map((item) => ({
+            id: item.id,
+            name: item.payeeName,
+            description: item.description || "",
+            kind: PAYEE_KIND_LABEL[item.kind],
+            work: WORK_TYPE_LABEL[item.workType],
+            qty: `${formatNumber(item.qty)} ${item.unit}`,
+            rate: formatRupiah(item.rate),
+            amount: formatRupiah(payrollItemAmount(item)),
+          }))}
+        />
       </Card>
       {payroll.status === "terbit" ? (
         <Card className="p-5">

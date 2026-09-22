@@ -11,7 +11,9 @@ import {
 } from "pdf-lib";
 import { invoiceDpp, invoicePpn, invoiceSubtotal, invoiceTotal } from "@/lib/finance";
 import { dayName, formatDate, formatNumber, formatRupiah, terbilang } from "@/lib/format";
-import type { BeritaAcara, CompanyProfile, Customer, Invoice, SuratJalan } from "@/lib/types";
+import { formatBankLine } from "@/lib/banks";
+import { PAYMENT_METHOD_LABEL } from "@/lib/labels";
+import type { BankAccount, BeritaAcara, CompanyProfile, Customer, Invoice, Receipt, SuratJalan } from "@/lib/types";
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -291,43 +293,56 @@ class PdfWriter {
     this.y = Math.min(leftY, rightY) - 8;
   }
 
-  table(columns: Column[], rows: string[][]) {
-    const pad = 8;
-    const headerSize = 9;
-    const cellSize = 9;
-    this.ensure(36);
-    this.page.drawLine({
-      start: { x: MARGIN, y: this.y + 12 },
-      end: { x: PAGE_W - MARGIN, y: this.y + 12 },
-      thickness: 1,
-      color: INK,
+  drawTableHeader(columns: Column[], pad = 8, headerSize = 9) {
+    const headerH = 18;
+    this.ensure(headerH + 12);
+    this.page.drawRectangle({
+      x: MARGIN,
+      y: this.y - 6,
+      width: CONTENT_W,
+      height: headerH,
+      color: MAROON,
     });
     let x = MARGIN;
     for (const col of columns) {
       this.draw(col.label, {
         x: x + (col.align === "right" ? 0 : pad),
+        y: this.y,
         size: headerSize,
         bold: true,
+        color: rgb(1, 1, 1),
         align: col.align,
         width: col.width - pad,
       });
       x += col.width;
     }
-    this.y -= 10;
-    this.page.drawLine({
-      start: { x: MARGIN, y: this.y + 8 },
-      end: { x: PAGE_W - MARGIN, y: this.y + 8 },
-      thickness: 1,
-      color: INK,
-    });
-    this.y -= 8;
+    this.y -= headerH + 4;
+  }
 
-    for (const row of rows) {
+  table(columns: Column[], rows: string[][]) {
+    const pad = 8;
+    const cellSize = 9;
+    this.drawTableHeader(columns, pad);
+
+    for (const [rowIndex, row] of rows.entries()) {
       const wrapped = columns.map((col, index) =>
         wrapLines(this.font, row[index] || "", cellSize, col.width - pad * 2),
       );
       const rowHeight = Math.max(22, ...wrapped.map((lines) => lines.length * 13 + 8));
-      this.ensure(rowHeight + 8);
+      if (this.y - rowHeight < MARGIN + 28) {
+        this.page = this.doc.addPage([PAGE_W, PAGE_H]);
+        this.y = PAGE_H - MARGIN;
+        this.drawTableHeader(columns, pad);
+      }
+      if (rowIndex % 2 === 1) {
+        this.page.drawRectangle({
+          x: MARGIN,
+          y: this.y - rowHeight + 12,
+          width: CONTENT_W,
+          height: rowHeight,
+          color: rgb(0.98, 0.98, 0.97),
+        });
+      }
       let cx = MARGIN;
       columns.forEach((col, index) => {
         wrapped[index].forEach((line, lineIndex) => {
@@ -653,6 +668,117 @@ export async function sjPdf(profile: CompanyProfile, customer: Customer, sj: Sur
     { heading: ["Penerima", customer.name], name: customer.pic || customer.name },
     { heading: ["Pengirim", profile.name], name: profile.owner, sub: profile.ownerTitle },
   );
+  return doc.save();
+}
+
+export async function kwitansiPdf(
+  profile: CompanyProfile,
+  customer: Customer,
+  receipt: Receipt,
+  invoiceNumber?: string,
+  bank?: BankAccount | null,
+) {
+  const { doc, writer } = await createWriter();
+  writer.page.drawRectangle({
+    x: 0,
+    y: PAGE_H - 10,
+    width: PAGE_W,
+    height: 10,
+    color: MAROON,
+  });
+  writer.companyAndMeta(profile, {
+    title: "KWITANSI",
+    titleColor: MAROON,
+    number: receipt.number,
+    lines: [formatDate(receipt.date)],
+  });
+  writer.drawTracked("KWITANSI", {
+    x: MARGIN,
+    y: writer.y,
+    size: 16,
+    color: MAROON,
+    align: "left",
+    tracking: 0.16,
+    width: CONTENT_W,
+  });
+  writer.gap(28);
+  writer.rule(RULE);
+  const rows: [string, string][] = [
+    ["Sudah terima dari", customer.name],
+    ["Uang sejumlah", terbilang(receipt.amount)],
+    [
+      "Untuk pembayaran",
+      invoiceNumber && !receipt.description.includes(invoiceNumber)
+        ? `${receipt.description} (Invoice ${invoiceNumber})`
+        : receipt.description,
+    ],
+    [
+      "Cara bayar",
+      [PAYMENT_METHOD_LABEL[receipt.method], receipt.method === "transfer" ? formatBankLine(bank) : ""]
+        .filter(Boolean)
+        .join(" - "),
+    ],
+  ];
+  for (const [label, value] of rows) {
+    writer.ensure(36);
+    writer.draw(label.toUpperCase(), { size: 8, color: MUTED, bold: true });
+    writer.gap(12);
+    writer.paragraph(value, { size: 11, leading: 15, italic: label === "Uang sejumlah" });
+    writer.gap(4);
+    writer.rule(RULE, 0.5);
+  }
+  if (receipt.notes) writer.paragraph(receipt.notes, { size: 9, leading: 13, color: MUTED });
+  writer.ensure(90);
+  const boxY = writer.y - 36;
+  writer.page.drawRectangle({
+    x: MARGIN,
+    y: boxY,
+    width: 210,
+    height: 42,
+    color: MAROON,
+  });
+  writer.draw("JUMLAH", { x: MARGIN + 12, y: boxY + 26, size: 8, color: rgb(1, 1, 1), bold: true });
+  writer.draw(formatRupiah(receipt.amount), {
+    x: MARGIN + 12,
+    y: boxY + 10,
+    size: 12,
+    color: rgb(1, 1, 1),
+    bold: true,
+  });
+  writer.draw(`${profile.city.split(",")[0]}, ${formatDate(receipt.date)}`, {
+    x: MARGIN + 250,
+    y: writer.y,
+    size: 10,
+    width: CONTENT_W - 250,
+    align: "center",
+  });
+  writer.y = boxY - 8;
+  writer.draw("Yang menerima", {
+    x: MARGIN + 250,
+    y: writer.y,
+    size: 9,
+    color: MUTED,
+    width: CONTENT_W - 250,
+    align: "center",
+  });
+  writer.gap(52);
+  writer.draw(profile.owner, {
+    x: MARGIN + 250,
+    y: writer.y,
+    size: 10,
+    bold: true,
+    width: CONTENT_W - 250,
+    align: "center",
+  });
+  writer.gap(13);
+  writer.draw(profile.ownerTitle, {
+    x: MARGIN + 250,
+    y: writer.y,
+    size: 9,
+    color: MUTED,
+    width: CONTENT_W - 250,
+    align: "center",
+  });
   return doc.save();
 }
 

@@ -13,6 +13,7 @@ import { Button, Card, Field, Input, Select } from "@/components/form-controls";
 import { formatBankOption } from "@/lib/banks";
 import { todayIso } from "@/lib/format";
 import { uploadAccept } from "@/lib/file-meta";
+import { attachFilesForDeployment } from "@/lib/upload-client";
 import { EXPENSE_LABEL } from "@/lib/labels";
 import type { BankAccount, CompanyProfile, Customer, ExpenseCategory, Product } from "@/lib/types";
 
@@ -212,7 +213,8 @@ export function PaymentForm({
         const data = new FormData(form);
         setError("");
         start(async () => {
-          const result = await addPayment(invoiceId, data);
+          const prepared = await attachFilesForDeployment(data, `payments/${invoiceId}`, "proof");
+          const result = await addPayment(invoiceId, prepared);
           if (result?.error) setError(result.error);
           else form.reset();
         });

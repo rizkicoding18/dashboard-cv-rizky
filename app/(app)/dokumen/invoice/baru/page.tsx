@@ -1,25 +1,17 @@
 import { InvoiceForm } from "@/components/invoice-form";
 import { PageHeader } from "@/components/shared";
+import { invoiceOrderOptions } from "@/lib/quotations";
 import { readDb } from "@/lib/store";
 
 export default async function InvoiceBaruPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string; customerId?: string }>;
+  searchParams: Promise<{ orderId?: string }>;
 }) {
-  const { orderId, customerId } = await searchParams;
+  const { orderId } = await searchParams;
   const db = await readDb();
-  const order = db.orders.find((row) => row.id === orderId);
-  const defaultItems = order?.items.map((item) => ({
-    key: item.id,
-    productId: item.productId || "",
-    name: item.name,
-    spec: item.spec,
-    qty: item.qty,
-    unit: item.unit,
-    unitPrice: item.unitPrice,
-    costPrice: item.costPrice,
-  }));
+  const orders = invoiceOrderOptions(db);
+  const order = orders.find((row) => row.id === orderId);
 
   return (
     <div>
@@ -28,8 +20,8 @@ export default async function InvoiceBaruPage({
         title="Invoice baru"
         description={
           order
-            ? `Dari order ${order.number}. Saat diterbitkan, faktur dan berita acara ikut dibuat.`
-            : "Saat invoice diterbitkan, faktur penjualan dan berita acara dibuat otomatis."
+            ? `Dari ${order.number} — ${order.customerName}. Pilih item yang ditagih sekarang; sisanya bisa masuk invoice berikutnya.`
+            : "Pilih order, tentukan harga net atau negosiasi, lalu klik item yang akan ditagih. Satu order bisa dipecah ke beberapa invoice."
         }
       />
       <InvoiceForm
@@ -37,9 +29,8 @@ export default async function InvoiceBaruPage({
         products={db.products}
         prices={db.customerPrices}
         banks={db.banks}
-        defaultCustomerId={order?.customerId || customerId}
-        defaultOrderId={order?.id || null}
-        defaultItems={defaultItems}
+        orders={orders}
+        defaultOrderId={order?.id}
         defaultPpnRate={db.profile.defaultPpnRate}
       />
     </div>

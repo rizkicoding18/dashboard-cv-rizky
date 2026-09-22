@@ -14,9 +14,10 @@ import { Button, Card, Field, Input, Select } from "@/components/form-controls";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Table, TableBody, TableHeader, TableRow, Td, Th } from "@/components/shared";
-import { filePublicUrl, formatFileSize, isImageFile, needsTaxInvoice, TAX_INVOICE_MIN, uploadAccept } from "@/lib/file-meta";
+import { TaxFilesTable } from "@/components/tables/detail-tables";
+import { filePublicUrl, formatFileSize, isImageFile, needsTaxInvoice, TAX_INVOICE_MIN, uploadAccept, type UploadKind } from "@/lib/file-meta";
 import { formatDate, formatRupiah } from "@/lib/format";
+import { attachFilesForDeployment } from "@/lib/upload-client";
 import type { StoredFile } from "@/lib/types";
 
 function FileUploadForm({
@@ -25,6 +26,8 @@ function FileUploadForm({
   label,
   hint,
   buttonLabel,
+  folder,
+  kind,
   action,
 }: {
   accept: string;
@@ -32,6 +35,8 @@ function FileUploadForm({
   label: string;
   hint: string;
   buttonLabel: string;
+  folder: string;
+  kind: UploadKind;
   action: (formData: FormData) => Promise<{ error?: string } | void>;
 }) {
   const [error, setError] = useState("");
@@ -46,7 +51,8 @@ function FileUploadForm({
         const data = new FormData(form);
         setError("");
         start(async () => {
-          const result = await action(data);
+          const prepared = await attachFilesForDeployment(data, folder, kind);
+          const result = await action(prepared);
           if (result?.error) setError(result.error);
           else form.reset();
         });
@@ -69,10 +75,14 @@ export function CompactFileUpload({
   action,
   accept,
   label,
+  folder,
+  kind,
 }: {
   action: (formData: FormData) => Promise<{ error?: string } | void>;
   accept: string;
   label: string;
+  folder: string;
+  kind: UploadKind;
 }) {
   const inputId = useId();
   const [error, setError] = useState("");
@@ -94,7 +104,8 @@ export function CompactFileUpload({
           data.set("file", file);
           setError("");
           start(async () => {
-            const result = await action(data);
+            const prepared = await attachFilesForDeployment(data, folder, kind);
+            const result = await action(prepared);
             if (result?.error) setError(result.error);
             input.value = "";
           });
@@ -182,6 +193,8 @@ export function ProductMediaCard({
             label={photo ? "Ganti foto" : "Unggah foto"}
             hint="JPG, PNG, atau WEBP. Maksimal 8 MB."
             buttonLabel={photo ? "Ganti foto" : "Unggah foto"}
+            folder={`products/${productId}/photo`}
+            kind="photo"
             action={uploadProductPhoto.bind(null, productId)}
           />
         </div>
@@ -212,6 +225,8 @@ export function ProductMediaCard({
             label="Tambah file"
             hint="Bisa pilih beberapa file sekaligus. Maksimal 50 MB per file."
             buttonLabel="Unggah file cetak"
+            folder={`products/${productId}/print`}
+            kind="print"
             action={uploadProductPrintFiles.bind(null, productId)}
           />
         </div>
@@ -265,75 +280,24 @@ export function TaxInvoiceSection({
         </Card>
       ) : (
         <Card>
-          <div className="grid gap-3 p-4 md:hidden">
-            {files.map((order) => {
-              const file = order.taxInvoice;
-              if (!file) return null;
-              const href = filePublicUrl(file);
-              return (
-                <div key={order.id} className="rounded-xl border p-4">
-                  <p className="font-medium">{file.name}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {order.number} · {order.customerName}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {formatDate(file.uploadedAt)} · {formatFileSize(file.size)}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <a href={href} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary">
-                      Buka
-                    </a>
-                    <ConfirmSubmit
-                      label="Hapus"
-                      message="Hapus faktur pajak ini?"
-                      variant="outline"
-                      action={removeOrderTaxInvoice.bind(null, order.id)}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <Th>File</Th>
-                  <Th>Order</Th>
-                  <Th>Perusahaan</Th>
-                  <Th>Tanggal</Th>
-                  <Th>Aksi</Th>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {files.map((order) => {
-                  const file = order.taxInvoice;
-                  if (!file) return null;
-                  const href = filePublicUrl(file);
-                  return (
-                    <TableRow key={order.id}>
-                      <Td className="font-medium">{file.name}</Td>
-                      <Td>{order.number}</Td>
-                      <Td>{order.customerName}</Td>
-                      <Td>{formatDate(file.uploadedAt)}</Td>
-                      <Td>
-                        <div className="flex flex-wrap gap-2">
-                          <a href={href} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary">
-                            Buka
-                          </a>
-                          <ConfirmSubmit
-                            label="Hapus"
-                            message="Hapus faktur pajak ini?"
-                            variant="outline"
-                            action={removeOrderTaxInvoice.bind(null, order.id)}
-                          />
-                        </div>
-                      </Td>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div className="py-4">
+            <TaxFilesTable
+              data={files.flatMap((order) => {
+                const file = order.taxInvoice;
+                if (!file) return [];
+                return [
+                  {
+                    id: order.id,
+                    name: file.name,
+                    orderNumber: order.number,
+                    customer: order.customerName,
+                    date: formatDate(file.uploadedAt),
+                    href: filePublicUrl(file),
+                    deleteAction: removeOrderTaxInvoice.bind(null, order.id),
+                  },
+                ];
+              })}
+            />
           </div>
         </Card>
       )}
@@ -366,7 +330,8 @@ function TaxInvoiceUploadForm({
         const data = new FormData(form);
         setError("");
         start(async () => {
-          const result = await uploadOrderTaxInvoice(orderId, data);
+          const prepared = await attachFilesForDeployment(data, `orders/${orderId}/tax`, "tax");
+          const result = await uploadOrderTaxInvoice(orderId, prepared);
           if (result?.error) setError(result.error);
           else form.reset();
         });

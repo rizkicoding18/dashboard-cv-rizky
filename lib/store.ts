@@ -16,6 +16,7 @@ function enqueue<T>(work: () => Promise<T>): Promise<T> {
 
 function migrate(db: Database): Database {
   if (!Array.isArray(db.suratJalans)) db.suratJalans = [];
+  if (!Array.isArray(db.receipts)) db.receipts = [];
   if (!Array.isArray(db.quotations)) db.quotations = [];
   if (!Array.isArray(db.banks)) db.banks = [];
   if (!Array.isArray(db.payees)) db.payees = [];

@@ -35,7 +35,10 @@ function filenameFromResponse(response: Response, href: string) {
 async function downloadPdfFile(href: string) {
   const response = await fetch(href, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(response.status === 404 ? "Dokumen tidak ditemukan" : "Gagal mengunduh PDF");
+    const detail = (await response.text().catch(() => "")).trim();
+    if (response.status === 401) throw new Error("Sesi login habis. Masuk lagi, lalu unduh PDF.");
+    if (response.status === 404) throw new Error(detail || "Dokumen tidak ditemukan");
+    throw new Error(detail || "Gagal mengunduh PDF");
   }
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
